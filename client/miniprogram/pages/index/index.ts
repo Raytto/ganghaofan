@@ -363,9 +363,8 @@ Component({
         const anchor = parseDate(this.data.anchorDate)
         const curStart = getMondayStart(anchor)
         const months = windowMonthsForNineWeeks(curStart)
+        // Update cache in background to avoid UI flashing, do not rebuild immediately
         await this.ensureCacheMonths(months, true, true)
-        // Rebuild with refreshed data silently
-        this.rebuildWeeks(curStart)
       } catch (e) {
         // silent fail
       } finally {
@@ -387,6 +386,21 @@ Component({
       const week = this.buildWeek(curStart, byKey, anchor)
       const nextWeek = this.buildWeek(new Date(curStart.getTime() + 7 * 86400000), byKey, anchor)
       this.setData({ weeks9, prevWeek, week, nextWeek })
+    },
+    computeWeeks(curStart: Date) {
+      const byKey: Map<string, any> = (this as any)._byKey || new Map<string, any>()
+      const anchor = this.data.anchorDate ? parseDate(this.data.anchorDate) : new Date()
+      const weekStarts: Date[] = []
+      for (let i = -4; i <= 4; i++) {
+        const d = new Date(curStart)
+        d.setDate(curStart.getDate() + i * 7)
+        weekStarts.push(d)
+      }
+      const weeks9 = weekStarts.map(ws => this.buildWeek(ws, byKey, anchor))
+      const prevWeek = this.buildWeek(new Date(curStart.getTime() - 7 * 86400000), byKey, anchor)
+      const week = this.buildWeek(curStart, byKey, anchor)
+      const nextWeek = this.buildWeek(new Date(curStart.getTime() + 7 * 86400000), byKey, anchor)
+      return { weeks9, prevWeek, week, nextWeek }
     },
     measureViewportAndCenter() {
       const q = wx.createSelectorQuery().in(this as any)
@@ -410,7 +424,11 @@ Component({
         const dowStr = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'][dow]
         const isWeekend = dow >= 5
         const isCurrentMonth = (d.getFullYear() === anchor.getFullYear() && d.getMonth() === anchor.getMonth())
-        const isCurrentYear = (d.getFullYear() === anchor.getFullYear())
+        // anchor year unused for labels after switching to real-time month/year checks
+        // Use the real current month for label formatting to keep DD for 本月 regardless of anchor
+        const now = new Date()
+        const isThisMonthNow = (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth())
+        const isThisYearNow = (d.getFullYear() === now.getFullYear())
         const lunch = byKey.get(`${dateStr}_lunch`)
         const dinner = byKey.get(`${dateStr}_dinner`)
         const toCell = (it: any) => toSlotView(it)
@@ -422,9 +440,9 @@ Component({
         const MM = dM
         const YY = `${d.getFullYear()}`.slice(2)
         let dateLabel: string
-        if (isWeekend || isCurrentMonth) {
+        if (isWeekend || isThisMonthNow) {
           dateLabel = DD
-        } else if (!isCurrentYear) {
+        } else if (!isThisYearNow) {
           dateLabel = `${YY}/${MM}/${DD}`
         } else {
           dateLabel = `${MM}/${DD}`
@@ -476,6 +494,15 @@ Component({
       } else {
         wx.showToast({ title: '尚未发布', icon: 'none' }); return
       }
+      // compute totals (no selected options yet; only base price)
+      const base = Number(d.base_price_cents || 0)
+      const total = base
+      // try get user balance for reminder
+      let balance_cents: number | undefined = undefined
+      try {
+        const bal: any = await api.request('/users/me/balance', { method: 'GET' })
+        balance_cents = Number(bal && bal.balance_cents || 0)
+      } catch { }
       this.setData({
         showOrder: true,
         orderDetail: {
@@ -486,6 +513,9 @@ Component({
           capacity: cap,
           ordered_qty: ordered,
           options: d.options,
+          base_price_cents: base,
+          total_cents: total,
+          balance_cents,
           action,
           readonlyMsg
         }
@@ -503,7 +533,7 @@ Component({
       try {
         const d = this.data.orderDetail || {}
         await this.ensureLogin()
-        const payload = { meal_id: d.meal_id, option_id: (d.options && d.options[0] && d.options[0].id) || null }
+        const payload = { meal_id: d.meal_id, qty: 1, options: [] as string[] }
         await api.request('/orders', { method: 'POST', data: payload })
         wx.showToast({ title: '下单成功', icon: 'success' })
         this.closeOrderDialog()
@@ -515,8 +545,8 @@ Component({
       try {
         const d = this.data.orderDetail || {}
         await this.ensureLogin()
-        // backend enforces single order per meal; reuse POST to replace, or ideally call PUT with order_id
-        const payload = { meal_id: d.meal_id, option_id: (d.options && d.options[0] && d.options[0].id) || null }
+        // backend enforces single order per meal; reuse POST to replace
+        const payload = { meal_id: d.meal_id, qty: 1, options: [] as string[] }
         await api.request('/orders', { method: 'POST', data: payload })
         wx.showToast({ title: '已更新', icon: 'success' })
         this.closeOrderDialog()
@@ -544,9 +574,10 @@ Component({
         try { await loginAndGetToken() } catch (e) { console.error(e) }
       }
     },
-    async loadWeek(anchorDateStr: string, opts?: { silent?: boolean, preload3Months?: boolean }) {
+    async loadWeek(anchorDateStr: string, opts?: { silent?: boolean, preload3Months?: boolean, force?: boolean }) {
       const silent = !!(opts && opts.silent)
       const preload3Months = !!(opts && opts.preload3Months)
+      const force = !!(opts && (opts as any).force)
       if (!silent) this.setData({ loading: true, tip: '' })
       try {
         const anchor = parseDate(anchorDateStr)
@@ -559,10 +590,11 @@ Component({
         } else {
           monthsToEnsure = windowMonthsForNineWeeks(curStart)
         }
-        await this.ensureCacheMonths(monthsToEnsure, silent)
-        // Rebuild weeks from cache
-        this.rebuildWeeks(curStart)
+        await this.ensureCacheMonths(monthsToEnsure, silent, force)
+        // Build weeks and labels, then batch in a single setData to avoid flash
+        const w = this.computeWeeks(curStart)
         this.setData({
+          ...w,
           meals: [],
           anchorDate: anchorDateStr,
           month: formatMonth(anchor),
@@ -593,12 +625,12 @@ Component({
     onPrevMonth() {
       const a = parseDate(this.data.anchorDate)
       a.setDate(a.getDate() - 21)
-      this.loadWeek(formatDate(a), { silent: true })
+      this.loadWeek(formatDate(a), { silent: true, force: true })
     },
     onNextMonth() {
       const a = parseDate(this.data.anchorDate)
       a.setDate(a.getDate() + 21)
-      this.loadWeek(formatDate(a), { silent: true })
+      this.loadWeek(formatDate(a), { silent: true, force: true })
     },
     onCalTouchStart(e: WechatMiniprogram.TouchEvent) {
       const t = e.touches && e.touches[0]

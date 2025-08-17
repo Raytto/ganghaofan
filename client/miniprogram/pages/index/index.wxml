@@ -4,9 +4,18 @@
   <view class="header-bottom">
     <view class="hb-left">
       <block wx:if="{{canAdmin}}">
-        <button class="view-toggle" bindtap="onToggleAdminView">{{adminView ? '管' : '用'}}</button>
+        <view class="hb-left-grid">
+          <view class="hb-cell left">
+            <button class="view-toggle" bindtap="onToggleAdminView">{{adminView ? '管' : '用'}}</button>
+          </view>
+          <view class="hb-cell right">
+            <button class="today-sm" bindtap="onToday">{{todayCnLabel}}</button>
+          </view>
+        </view>
       </block>
-  <button class="today-sm" bindtap="onToday">{{todayCnLabel}}</button>
+      <block wx:else>
+        <button class="today-sm" bindtap="onToday">{{todayCnLabel}}</button>
+      </block>
     </view>
     <view class="hb-right">
       <text class="slogan">和罡子哥一起健康每一天</text>

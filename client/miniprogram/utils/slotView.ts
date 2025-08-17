@@ -41,24 +41,28 @@ export function toSlotView(it?: MealLite | null): SlotView {
     } else if (status === 'canceled') {
         l2 = '未发布'
     }
-    // line3: for published with stock left, show remaining; otherwise show my status
-    const l3 = (status === 'published' && left > 0) ? `剩${left}` : (my ? '已订' : '未订')
+    // line3: if I have ordered, always show 已订; else if published with stock left show remaining; otherwise 未订
+    const l3 = my ? '已订' : ((status === 'published' && left > 0) ? `剩${left}` : '未订')
     // color rules
     let bg = '#616161', fg = '#C4C7C5'
     if (status === 'published') {
         if (left > 0) {
-            bg = my ? '#F4511E' : '#F6BF26'
+            // 可订：未订 -> 橙 F4511E；已订 -> 黄 F6BF26
+            bg = my ? '#F6BF26' : '#F4511E'
             fg = '#131314'
         } else {
-            bg = my ? '#F4511E' : '#616161'
-            fg = my ? '#131314' : '#C4C7C5'
+            // 被订完：未订 -> 浅蓝 7986CB；已订 -> 橙 F4511E
+            bg = my ? '#F4511E' : '#7986CB'
+            fg = '#131314'
         }
     } else if (status === 'locked') {
-        bg = my ? '#8E24AA' : '#616161'
-        fg = my ? '#131314' : '#C4C7C5'
+        // 已锁定：已订 -> 紫 8E24AA；未订 -> 浅蓝 7986CB
+        bg = my ? '#8E24AA' : '#7986CB'
+        fg = '#131314'
     } else if (status === 'completed') {
-        bg = my ? '#039BE5' : '#616161'
-        fg = my ? '#131314' : '#C4C7C5'
+        // 已完成：未订 -> 浅蓝 7986CB；已订 -> 深蓝 3F51B5
+        bg = my ? '#3F51B5' : '#7986CB'
+        fg = '#131314'
     } else {
         // includes 'none' and 'canceled'
         bg = '#616161'; fg = '#C4C7C5'

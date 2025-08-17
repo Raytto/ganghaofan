@@ -23,13 +23,19 @@ page {
 .header-bottom { display: flex; align-items: stretch; margin-top: 6px; }
 .hb-left, .hb-right { display: flex; align-items: center; min-width: 0; }
 .hb-left { flex: 1 1 0; }
-.hb-right { flex: 2 1 0; justify-content: flex-end; gap: 6px; }
-.today-sm { font-size: 12px; padding: 6px 10px; border-radius: 14px; border: 0.5px solid rgba(255,255,255,0.12); background: #21262D; color: #C9D1D9; width: 100%; text-align: center; }
-.view-toggle { font-size: 12px; padding: 2px 3px; border-radius: 12px; border: 0.5px solid rgba(255,255,255,0.12); background: #21262D; color: #C9D1D9; margin-right: 8px; min-width: 18px; }
+.hb-right { flex: 1 1 0; justify-content: flex-end; gap: 6px; }
+.today-sm { font-size: 12px; padding: 0 10px; height: 28px; border-radius: 14px; border: 0.5px solid rgba(255,255,255,0.12); background: #21262D; color: #C9D1D9; width: 100%; text-align: center; display: flex; align-items: center; justify-content: center; box-sizing: border-box; }
+.view-toggle { font-size: 12px; padding: 0; height: 28px; line-height: 28px; border-radius: 14px; border: 0.5px solid rgba(255,255,255,0.12); background: #21262D; color: #C9D1D9; margin-right: 8px; width: 25px; box-sizing: border-box; text-align: center; display: flex; align-items: center; justify-content: center; }
 .nav-btn-sm { font-size: 16px; padding: 0 6px; border: none; background: transparent; color: inherit; }
 .header-bottom .full { color: #C9D1D9; font-weight: 600; }
 .cal-track.animate { transition: transform 180ms ease-out; }
 .slot .right { margin-left: auto; opacity: 0.8; }
+
+/* Table-like split: 管/用 1/4 width, Today takes remaining 3/4 */
+.hb-left-grid { display: flex; width: 100%; align-items: center; }
+.hb-left-grid .hb-cell { display: flex; align-items: center; min-width: 0; }
+.hb-left-grid .hb-cell.left { width: 25%; box-sizing: border-box; }
+.hb-left-grid .hb-cell.right { flex: 1 1 0; }
 
 /* Modal */
 .modal-mask { position: fixed; left: 0; top: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 999; }

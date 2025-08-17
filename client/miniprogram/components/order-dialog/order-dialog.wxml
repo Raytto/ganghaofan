@@ -7,6 +7,13 @@
     <scroll-view class="modal-body" scroll-y="true" enhanced="true" show-scrollbar="true">
       <view class="row"><text class="lbl">日期/时段</text><text class="val">{{detail.date}} · {{detail.slot==='lunch'?'午餐':'晚餐'}}</text></view>
       <view class="row"><text class="lbl">已订</text><text class="val">{{detail.ordered_qty || 0}} / {{detail.capacity || 0}}</text></view>
+      <view class="row"><text class="lbl">基本价格</text><text class="val">{{(detail.base_price_cents || 0) / 100}} 元</text></view>
+      <view class="row"><text class="lbl">总价</text><text class="val">{{(detail.total_cents || detail.base_price_cents || 0) / 100}} 元</text></view>
+      <view wx:if="{{detail.balance_cents !== undefined}}" class="row">
+        <text class="lbl">余额</text>
+        <text class="val">{{(detail.balance_cents || 0) / 100}} 元</text>
+      </view>
+      <view wx:if="{{(detail.balance_cents || 0) < (detail.total_cents || detail.base_price_cents || 0)}}" class="row"><text class="val warn-text">余额不足，请先充值</text></view>
       <view class="row col">
         <text class="lbl">描述</text>
         <view class="col-body"><text class="val">{{detail.description || '—'}}</text></view>

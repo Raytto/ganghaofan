@@ -5,6 +5,39 @@ Component({
             { pagePath: '/pages/admin/index', text: '管理' },
             { pagePath: '/pages/index/index', text: '点餐' },
             { pagePath: '/pages/profile/index', text: '我的' }
+        ] as Array<{ pagePath: string; text: string }>
+    },
+    lifetimes: {
+        attached(this: any) {
+            this.updateSelected()
+        }
+    },
+    methods: {
+        updateSelected(this: any) {
+            const pages = getCurrentPages()
+            if (!pages || pages.length === 0) return
+            const cur = pages[pages.length - 1] as any
+            const path = '/' + (cur?.route ?? '')
+            if (!path || path === '/') return
+            const idx = this.data.list.findIndex((i: { pagePath: string }) => i.pagePath === path)
+            if (idx >= 0) this.setData({ selected: idx })
+        },
+        switchTab(this: any, e: WechatMiniprogram.TouchEvent) {
+            const idxRaw = (e.currentTarget as any).dataset.index
+            const idx = typeof idxRaw === 'number' ? idxRaw : Number(idxRaw)
+            const item = this.data.list[idx]
+            if (!item) return
+            wx.switchTab({ url: item.pagePath })
+        }
+    }
+})
+Component({
+    data: {
+        selected: 0,
+        list: [
+            { pagePath: '/pages/admin/index', text: '管理' },
+            { pagePath: '/pages/index/index', text: '点餐' },
+            { pagePath: '/pages/profile/index', text: '我的' }
         ]
     },
     lifetimes: {
