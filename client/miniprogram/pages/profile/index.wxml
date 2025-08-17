@@ -1,0 +1,6 @@
+<navigation-bar title="个人中心" back="{{false}}" color="#C9D1D9" background="#1B1B1B"></navigation-bar>
+<view class="page">
+  <view class="section">
+    <text>用户信息（占位）</text>
+  </view>
+</view>

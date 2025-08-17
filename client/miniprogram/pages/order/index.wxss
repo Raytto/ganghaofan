@@ -1,0 +1,6 @@
+.container { padding: 12px; }
+.title { font-size: 18px; font-weight: 600; margin: 8px 0; }
+.meta { color: #666; font-size: 12px; margin: 4px 0; }
+.loading, .error { padding: 16px; color: #666; }
+.error { color: #d12; }
+.actions { margin-top: 16px; }

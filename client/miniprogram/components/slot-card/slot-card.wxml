@@ -1,0 +1,5 @@
+<view class="slot {{type}}" style="background-color: {{view.bg}}; color: {{view.fg}};" bindtap="onTap">
+  <text class="sline line1" style="color: {{view.fg}};">{{label}}</text>
+  <text class="sline line2" style="color: {{view.fg}};">{{view.l2}}</text>
+  <text class="sline line3" style="color: {{view.fg}};">{{view.l3}}</text>
+</view>

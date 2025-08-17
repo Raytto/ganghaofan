@@ -1,0 +1,5 @@
+.tab-bar { position: fixed; left: 0; right: 0; bottom: 0; height: 50px; display: flex; background: #1B1B1B; border-top: 0.5px solid #333537; }
+.tab-item { flex: 1; display: flex; align-items: center; justify-content: center; color: #8b949e; }
+.tab-item.active { color: #C9D1D9; font-weight: 600; }
+.tab-item.hidden { display: none; }
+.text { font-size: 12px; }

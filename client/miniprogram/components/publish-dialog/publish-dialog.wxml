@@ -1,0 +1,64 @@
+<view wx:if="{{show}}" class="modal-mask" catchtouchmove="true" bindtap="onCloseMask">
+  <view class="modal" catchtap>
+    <view class="modal-header">
+      <text class="modal-title">{{mode==='edit' ? '编辑罡好饭' : '发布罡好饭'}}</text>
+      <view class="icon-btn modal-close" bindtap="onClose">×</view>
+    </view>
+    <scroll-view class="modal-body" scroll-y="true" enhanced="true" show-scrollbar="true">
+      <view class="row"><text class="lbl">日期/时段</text><text class="val">{{form.date}} · {{form.slot==='lunch'?'午餐':'晚餐'}}</text></view>
+      <view class="row col">
+        <text class="lbl">描述</text>
+        <view class="col-body">
+          <textarea class="ta" placeholder="可填写餐食描述" value="{{form.description}}" data-field="description" bindinput="onInput" disabled="{{readonly}}" />
+        </view>
+      </view>
+      <view class="row">
+        <text class="lbl">价格(元)</text>
+        <view class="num">
+          <button class="btn-adjust" size="mini" data-field="basePrice" data-step="-5" bindtap="onAdjust" disabled="{{readonly}}">-5</button>
+          <input class="inp-num" type="number" value="{{form.basePrice}}" data-field="basePrice" bindinput="onNumber" disabled="{{readonly}}" />
+          <button class="btn-adjust" size="mini" data-field="basePrice" data-step="5" bindtap="onAdjust" disabled="{{readonly}}">+5</button>
+        </view>
+      </view>
+      <view class="row">
+        <text class="lbl">限制（份）</text>
+        <view class="num">
+          <button class="btn-adjust" size="mini" data-field="capacity" data-step="-10" bindtap="onAdjust" disabled="{{readonly}}">-10</button>
+          <input class="inp-num" type="number" value="{{form.capacity}}" data-field="capacity" bindinput="onNumber" disabled="{{readonly}}" />
+          <button class="btn-adjust" size="mini" data-field="capacity" data-step="10" bindtap="onAdjust" disabled="{{readonly}}">+10</button>
+        </view>
+      </view>
+      <view class="opts-head">
+        <text class="opts-title">可选项(名称和价格)</text>
+        <button wx:if="{{!readonly}}" class="btn-accent" size="mini" bindtap="onAddOption">添加</button>
+      </view>
+      <block wx:for="{{form.options}}" wx:key="id" wx:for-index="idx" wx:for-item="op">
+        <view class="row opt-item">
+          <input class="inp opt-name" placeholder="名称" value="{{op.name}}" data-idx="{{idx}}" data-field="name" bindinput="onOptionInput" disabled="{{readonly}}" />
+          <view class="num opt-price">
+            <button class="btn-adjust" size="mini" data-idx="{{idx}}" data-step="-1" bindtap="onAdjustOption" disabled="{{readonly}}">-1</button>
+            <input class="inp-num" type="number" value="{{op.price}}" data-idx="{{idx}}" data-field="price" bindinput="onOptionInput" disabled="{{readonly}}" />
+            <button class="btn-adjust" size="mini" data-idx="{{idx}}" data-step="1" bindtap="onAdjustOption" disabled="{{readonly}}">+1</button>
+          </view>
+          <button wx:if="{{!readonly}}" class="btn-accent" size="mini" data-idx="{{idx}}" bindtap="onRemoveOption">删除</button>
+        </view>
+      </block>
+      <view wx:if="{{mode==='edit' && needsRepost && !readonly}}" class="warn-text">此次修改将取消所有已订餐用户的订单</view>
+    </scroll-view>
+    <view class="modal-footer">
+      <block wx:if="{{mode==='create'}}">
+        <button class="btn-primary" bindtap="onSubmit">发布</button>
+      </block>
+      <block wx:elif="{{mode==='edit'}}">
+        <block wx:if="{{original && original.status==='published'}}">
+          <button class="btn-accent" bindtap="onCancelMeal">撤单</button>
+          <button class="btn-accent" bindtap="onLockMeal">锁定</button>
+          <button class="btn-primary" bindtap="onSubmit">修改</button>
+        </block>
+        <block wx:elif="{{original && original.status==='locked'}}">
+          <button class="btn-accent" bindtap="onCancelMeal">撤单</button>
+        </block>
+      </block>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,6 @@
+/* Ensure the component root fills available space and inherits calendar slot layout */
+:host { display: flex; flex: 1 1 0; }
+.slot { display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: 6px; padding: 4px 6px; font-size: 11px; border: 0.5px solid rgba(255,255,255,0.06); min-height: 18px; flex: 1 1 0; }
+.slot text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; width: 100%; }
+.sline { line-height: 14px; }
+.sline.line1 { font-weight: 600; }

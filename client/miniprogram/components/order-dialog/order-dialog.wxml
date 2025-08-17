@@ -1,0 +1,28 @@
+<view wx:if="{{show}}" class="modal-mask" catchtouchmove="true" bindtap="onCloseMask">
+  <view class="modal" catchtap>
+    <view class="modal-header">
+      <text class="modal-title">点餐</text>
+      <view class="icon-btn modal-close" bindtap="onClose">×</view>
+    </view>
+    <scroll-view class="modal-body" scroll-y="true" enhanced="true" show-scrollbar="true">
+      <view class="row"><text class="lbl">日期/时段</text><text class="val">{{detail.date}} · {{detail.slot==='lunch'?'午餐':'晚餐'}}</text></view>
+      <view class="row"><text class="lbl">已订</text><text class="val">{{detail.ordered_qty || 0}} / {{detail.capacity || 0}}</text></view>
+      <view class="row col">
+        <text class="lbl">描述</text>
+        <view class="col-body"><text class="val">{{detail.description || '—'}}</text></view>
+      </view>
+      <view class="opts-head"><text class="opts-title">可选项(名称和价格)</text></view>
+      <block wx:for="{{detail.options || []}}" wx:key="id" wx:for-item="op">
+        <view class="row"><text class="val">{{op.name}} {{op.price_cents >= 0 ? ('+' + (op.price_cents/100) + '元') : (op.price_cents/100 + '元')}}</text></view>
+      </block>
+      <view wx:if="{{detail.readonlyMsg}}" class="row"><text class="val">{{detail.readonlyMsg}}</text></view>
+    </scroll-view>
+    <view class="modal-footer">
+      <button wx:if="{{detail.action==='create'}}" class="btn-primary" bindtap="onCreate">下单</button>
+      <block wx:elif="{{detail.action==='update'}}">
+        <button class="btn-primary" bindtap="onUpdate">确定修改</button>
+        <button class="btn-accent" bindtap="onCancelOrder">撤单</button>
+      </block>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,13 @@
+name: ghf-server
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - fastapi=0.112.0
+  - uvicorn=0.30.3
+  - pydantic=2.8.2
+  - pip
+  - pip:
+      - duckdb==1.1.0
+      - python-jose==3.3.0

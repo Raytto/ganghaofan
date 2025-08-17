@@ -1,0 +1,2 @@
+.page { min-height: 100vh; background: #1B1B1B; color: #C9D1D9; padding-bottom: 50px; }
+.section { padding: 16px; }

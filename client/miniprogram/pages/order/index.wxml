@@ -1,0 +1,18 @@
+<navigation-bar title="下单" back="{{true}}" color="black" background="#FFF"></navigation-bar>
+<view class="container">
+  <view wx:if="{{loading}}" class="loading">加载中...</view>
+  <view wx:elif="{{tip}}" class="error">{{tip}}</view>
+  <view wx:else>
+    <block wx:if="{{meal}}">
+      <view class="title">{{meal.title || '餐次'}}</view>
+      <view class="meta">{{meal.date}} {{meal.slot === 'lunch' ? '午餐' : '晚餐'}}</view>
+      <view class="meta">剩余：{{(meal.capacity || 0) - (meal.ordered_qty || 0)}}</view>
+    </block>
+    <block wx:else>
+      <view class="title">餐次</view>
+    </block>
+    <view class="actions">
+      <button bindtap="onCreateOrder">下单</button>
+    </view>
+  </view>
+</view>

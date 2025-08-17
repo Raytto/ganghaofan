@@ -1,0 +1,2 @@
+/* Reuse page modal styles via inheritance; component provides only additional rules if needed */
+.warn-text { color: #DA5234; padding: 6px 0 0; }
