@@ -1,3 +1,19 @@
+/**
+ * 首页日历组件 - 核心页面逻辑
+ * 
+ * 功能概述：
+ * - 展示工作日（周一至周五）的9周窗口日历视图
+ * - 支持平滑的滑动翻页和吸附定位
+ * - 管理员/用户模式切换，支持餐次发布和订单管理
+ * - 数据缓存和预加载机制，减少网络请求
+ * 
+ * 核心特性：
+ * - 9周窗口：预加载前3周+当前3周+后3周的数据
+ * - 吸附滚动：每次滑动跨越3周，自动居中定位
+ * - 双模式：用户模式查看和下单，管理员模式发布和管理
+ * - 弹窗组件：集成发布弹窗和订单弹窗
+ */
+
 // index.ts
 import { api, getCalendarBatch } from '../../utils/api'
 import { loginAndGetToken } from '../../utils/api'
@@ -6,6 +22,7 @@ import { toSlotView } from '../../utils/slotView'
 
 Component({
   data: {
+    // 时间和标签相关
     month: formatMonth(),
     anchorDate: formatDate(new Date()),
     monthLabel: '',
@@ -13,40 +30,55 @@ Component({
     monthOnlyLabel: '',
     fullLabel: '',
     todayCnLabel: '',
+    
+    // 餐次数据
     meals: [] as any[],
     week: [] as any[],
     prevWeek: [] as any[],
     nextWeek: [] as any[],
-    weeks9: [] as any[], // [3 prev, 3 current, 3 next] arrays of 7-day cells
+    weeks9: [] as any[], // 9周窗口数据：[3 prev, 3 current, 3 next]
+    
+    // UI状态
     loading: false,
     tip: '',
+    
+    // 触摸和滚动控制
     _touchY: 0,
     _touchX: 0,
     _touchTime: 0,
-    blockH: 0, // measured height of the viewport
-    trackY: 0, // translate for drag and page snap
-    trackAnimate: false,
-    _pageOffset: 0, // -1, 0, +1 during gesture animations
-    trackBase: 0, // static base offset to keep current three weeks centered
-    adminView: false,
-    canAdmin: false,
+    blockH: 0, // 视口高度，用于计算滚动距离
+    trackY: 0, // 当前滚动位移
+    trackAnimate: false, // 是否启用滚动动画
+    _pageOffset: 0, // 页面偏移量：-1, 0, +1
+    trackBase: 0, // 基础偏移量，用于保持当前3周居中
+    
+    // 模式和权限
+    adminView: false, // 是否为管理员视图
+    canAdmin: false, // 是否具有管理员权限
+    
+    // 发布弹窗相关
     showPublish: false,
     publishMode: 'create' as 'create' | 'edit',
     publishMealId: null as number | null,
     publishOriginal: null as any,
-    publishNeedsRepost: false,
+    publishNeedsRepost: false, // 是否需要危险重发
     publishReadonly: false,
+    
+    // 订单弹窗相关  
     showOrder: false,
     orderDetail: {} as any,
+    
+    // 发布表单数据
     publishForm: {
       date: '',
       slot: 'lunch',
       description: '',
-      basePrice: 20,
+      basePrice: 20, // 单位：元
       capacity: 50,
       options: [] as { id: string; name: string; price: number }[],
     },
   },
+  
   lifetimes: {
     attached() {
       const m = this.data.month
