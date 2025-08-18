@@ -639,6 +639,17 @@ Component({
       const cap = Number(d.capacity || 0)
       const ordered = Number(d.ordered_qty || 0)
       const leftNow = Math.max(0, cap - ordered)
+      
+      // Fetch user's current order for this meal if they have one
+      let userOrder = null
+      if (my) {
+        try {
+          userOrder = await api.request(`/orders?meal_id=${mealId}`, { method: 'GET' })
+        } catch (e) {
+          console.log('No existing order found for user')
+        }
+      }
+      
       // decide action/read-only
       let action: 'create' | 'update' | 'readonly' = 'readonly'
       let readonlyMsg = ''
@@ -678,6 +689,16 @@ Component({
           readonlyMsg
         }
       })
+      
+      // Set selected options in the dialog component after it's shown
+      setTimeout(() => {
+        const orderDialog = this.selectComponent('#order-dialog')
+        if (orderDialog && userOrder && userOrder.options) {
+          orderDialog.setData({ 
+            selectedOptions: userOrder.options || [] 
+          })
+        }
+      }, 100)
     },
     closeOrderDialog() {
       this.setData({ showOrder: false })
@@ -691,7 +712,10 @@ Component({
       try {
         const d = this.data.orderDetail || {}
         await this.ensureLogin()
-        const payload = { meal_id: d.meal_id, qty: 1, options: [] as string[] }
+        // Get selected options from the order dialog component
+        const orderDialog = this.selectComponent('#order-dialog')
+        const selectedOptions = orderDialog ? orderDialog.data.selectedOptions || [] : []
+        const payload = { meal_id: d.meal_id, qty: 1, options: selectedOptions }
         await api.request('/orders', { method: 'POST', data: payload })
         wx.showToast({ title: '下单成功', icon: 'success' })
         this.closeOrderDialog()
@@ -703,8 +727,11 @@ Component({
       try {
         const d = this.data.orderDetail || {}
         await this.ensureLogin()
+        // Get selected options from the order dialog component
+        const orderDialog = this.selectComponent('#order-dialog')
+        const selectedOptions = orderDialog ? orderDialog.data.selectedOptions || [] : []
         // backend enforces single order per meal; reuse POST to replace
-        const payload = { meal_id: d.meal_id, qty: 1, options: [] as string[] }
+        const payload = { meal_id: d.meal_id, qty: 1, options: selectedOptions }
         await api.request('/orders', { method: 'POST', data: payload })
         wx.showToast({ title: '已更新', icon: 'success' })
         this.closeOrderDialog()
