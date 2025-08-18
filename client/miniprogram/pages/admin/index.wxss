@@ -1,4 +1,5 @@
-.page { min-height: 100vh; padding-bottom: 50px; }
+.page { min-height: 100vh; padding-bottom: 64px; padding-bottom: calc(64px + env(safe-area-inset-bottom)); background: #131314; }
+.light-theme .page { background: #F8F9FA; }
 .section { padding: 16px; }
 
 .row {

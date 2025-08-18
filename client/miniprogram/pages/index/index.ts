@@ -17,6 +17,8 @@
 // index.ts
 import { api, getCalendarBatch } from '../../utils/api'
 import { loginAndGetToken } from '../../utils/api'
+import { getDbKey } from '../../utils/api'
+import { promptPassphrase } from '../../utils/passphrase'
 import { formatMonth, formatDate, parseDate, getMondayStart, startOfMonth, addMonths, monthsBetween, windowMonthsForNineWeeks } from '../../utils/date'
 import { toSlotView } from '../../utils/slotView'
 
@@ -30,18 +32,18 @@ Component({
     monthOnlyLabel: '',
     fullLabel: '',
     todayCnLabel: '',
-    
+
     // 餐次数据
     meals: [] as any[],
     week: [] as any[],
     prevWeek: [] as any[],
     nextWeek: [] as any[],
     weeks9: [] as any[], // 9周窗口数据：[3 prev, 3 current, 3 next]
-    
+
     // UI状态
     loading: false,
     tip: '',
-    
+
     // 触摸和滚动控制
     _touchY: 0,
     _touchX: 0,
@@ -51,11 +53,12 @@ Component({
     trackAnimate: false, // 是否启用滚动动画
     _pageOffset: 0, // 页面偏移量：-1, 0, +1
     trackBase: 0, // 基础偏移量，用于保持当前3周居中
-    
+    trackHeight: 0, // 3页高度（1页=blockH）
+
     // 模式和权限
     adminView: false, // 是否为管理员视图
     canAdmin: false, // 是否具有管理员权限
-    
+
     // 发布弹窗相关
     showPublish: false,
     publishMode: 'create' as 'create' | 'edit',
@@ -63,11 +66,16 @@ Component({
     publishOriginal: null as any,
     publishNeedsRepost: false, // 是否需要危险重发
     publishReadonly: false,
-    
+    submittingPublish: false,
+
     // 订单弹窗相关  
     showOrder: false,
     orderDetail: {} as any,
-    
+
+    // 最近一次点击的日期和餐次（用于发布时自动填充）
+    lastPublishDate: '' as string,
+    lastPublishSlot: '' as any as 'lunch' | 'dinner' | '',
+
     // 发布表单数据
     publishForm: {
       date: '',
@@ -77,20 +85,20 @@ Component({
       capacity: 50,
       options: [] as { id: string; name: string; price: number }[],
     },
-    
+
     // 主题相关
     themeClass: '',
     darkMode: true,
   },
-  
+
   lifetimes: {
     attached() {
       const m = this.data.month
-      
+
       // 初始化主题
       const app = getApp<IAppOption>()
       const darkMode = app?.globalData?.darkMode !== false
-      
+
       this.setData({
         monthLabel: m.replace('-', '年') + '月',
         yearLabel: m.split('-')[0] + '年',
@@ -103,16 +111,45 @@ Component({
         // init caches
         ; (this as any)._byKey = new Map<string, any>()
         ; (this as any)._loadedMonths = new Set<string>()
+        ; (this as any)._dbKeyPrev = getDbKey() || ''
       // set adminView and slogan based on app global toggle & permission
       this.refreshAdminBindings()
         ; (this as any)._lastRefreshTs = 0
         ; (this as any)._refreshingSwipe = false
+      // 如果未设置口令，优先弹窗并跳过首次数据加载，待设置后再刷新
+      const dbKey = getDbKey()
+      if (!dbKey) {
+        wx.nextTick(() => this.measureViewportAndCenter())
+        setTimeout(() => this.promptPassphraseOnCalendar(), 50)
+        return
+      }
+      // 已有口令则正常加载
       this.loadWeek(this.data.anchorDate, { preload3Months: true })
       // After first render, measure viewport and center the track
       wx.nextTick(() => this.measureViewportAndCenter())
     }
   },
   methods: {
+    // 口令相关：弹窗并在设置后刷新当前日历
+    async promptPassphraseOnCalendar() {
+      const key = await promptPassphrase()
+      if (key) this.onDbKeyChanged(key || '')
+    },
+    onDbKeyChanged(newKey: string) {
+      ; (this as any)._dbKeyPrev = newKey || ''
+      // 清理旧缓存与视图测量值，避免沿用错误的高度与基线
+      this.resetCalendarCache()
+      this.setData({ blockH: 0, trackBase: 0, trackY: 0, trackAnimate: false, _pageOffset: 0, trackHeight: 0 })
+      // 基于新数据库强制刷新当前锚点的三月预载窗口
+      this.loadWeek(this.data.anchorDate, { preload3Months: true, force: true })
+      // 确保在新数据渲染后重新测量并居中到中页
+      wx.nextTick(() => this.measureViewportAndCenter())
+    },
+    resetCalendarCache() {
+      ; (this as any)._byKey = new Map<string, any>()
+        ; (this as any)._loadedMonths = new Set<string>()
+        ; (this as any)._lastRefreshTs = 0
+    },
     formatCnDate(d: Date) {
       const y = d.getFullYear()
       const m = `${d.getMonth() + 1}`.padStart(2, '0')
@@ -156,6 +193,8 @@ Component({
           capacity: 50,
           options: [],
         },
+        lastPublishDate: dateStr,
+        lastPublishSlot: slot,
       })
     },
     async openEditPublishDialog(mealId: number) {
@@ -273,15 +312,45 @@ Component({
       if (this.data.publishMode === 'edit') this.computePublishNeedsRepost()
     },
     async onPublishSubmit() {
+      if (this.data.submittingPublish) { return }
+      this.setData({ submittingPublish: true })
       const form = (this.data as any).publishForm
+      try { wx.showLoading({ title: '提交中...', mask: true }) } catch { }
       if (!this.data.adminView) {
         wx.showToast({ title: '无权限', icon: 'none' })
+        try { wx.hideLoading() } catch { }
+        ; (this as any)._publishTmr && clearTimeout((this as any)._publishTmr)
+        this.setData({ submittingPublish: false })
         return
       }
-      if (!form || !form.date || !form.slot) return
+      // 自动填充缺失的日期和餐次
+      let dateToUse = form && form.date
+      let slotToUse = form && form.slot
+      if (!dateToUse) dateToUse = (this.data as any).lastPublishDate || ''
+      if (!slotToUse) slotToUse = (this.data as any).lastPublishSlot || ''
+      if (!form) {
+        this.setData({ publishForm: { date: dateToUse || '', slot: (slotToUse as any) || 'lunch', description: '', basePrice: 20, capacity: 50, options: [] } })
+      } else {
+        if (!form.date && dateToUse) this.setData({ 'publishForm.date': dateToUse })
+        if (!form.slot && slotToUse) this.setData({ 'publishForm.slot': slotToUse })
+      }
+      if (!dateToUse || !slotToUse) {
+        try { wx.hideLoading() } catch { }
+        wx.showToast({ title: '请选择日期和餐次', icon: 'none' })
+          ; (this as any)._publishTmr && clearTimeout((this as any)._publishTmr)
+        this.setData({ submittingPublish: false })
+        return
+      }
+      // safety timeout to avoid infinite spinner on network hang (start after validations)
+      ; (this as any)._publishTmr && clearTimeout((this as any)._publishTmr)
+        ; (this as any)._publishTmr = setTimeout(() => {
+          try { wx.hideLoading() } catch { }
+          this.setData({ submittingPublish: false })
+          wx.showToast({ title: '网络超时，请稍后重试', icon: 'none' })
+        }, 15000)
       const body: any = {
-        date: form.date,
-        slot: form.slot,
+        date: dateToUse,
+        slot: slotToUse,
         title: null,
         description: form.description || '',
         base_price_cents: Math.round((form.basePrice || 0) * 100),
@@ -309,10 +378,10 @@ Component({
         // update local cache
         const byKey: Map<string, any> = (this as any)._byKey || new Map<string, any>()
         const ordered_qty = usedRepost ? 0 : ((this.data.publishMode === 'edit' && (this.data as any).publishOriginal) ? Number((this.data as any).publishOriginal.ordered_qty || 0) : 0)
-        byKey.set(`${form.date}_${form.slot}`, {
+        byKey.set(`${dateToUse}_${slotToUse}`, {
           meal_id,
-          date: form.date,
-          slot: form.slot,
+          date: dateToUse,
+          slot: slotToUse,
           title: null,
           base_price_cents: body.base_price_cents,
           options: body.options,
@@ -331,15 +400,22 @@ Component({
       } catch (e: any) {
         const msg = (e && (e as any).message) || '发布失败'
         wx.showToast({ title: msg, icon: 'none' })
+      } finally {
+        try { wx.hideLoading() } catch { }
+        ; (this as any)._publishTmr && clearTimeout((this as any)._publishTmr)
+        this.setData({ submittingPublish: false })
       }
     },
     onPublishFieldChange() {
       if (this.data.publishMode === 'edit') this.computePublishNeedsRepost()
     },
     async onMealLock() {
+      if (this.data.submittingPublish) return
       const id = this.data.publishMealId
       if (!id) return
+      this.setData({ submittingPublish: true })
       try {
+        try { wx.showLoading({ title: '处理中...', mask: true }) } catch { }
         await this.ensureLogin()
         await api.request(`/meals/${id}/lock`, { method: 'POST' })
         wx.showToast({ title: '已锁定', icon: 'success' })
@@ -352,12 +428,18 @@ Component({
         this.rebuildWeeks(curStart)
       } catch (e: any) {
         wx.showToast({ title: e?.message || '操作失败', icon: 'none' })
+      } finally {
+        try { wx.hideLoading() } catch { }
+        this.setData({ submittingPublish: false })
       }
     },
     async onMealCancel() {
+      if (this.data.submittingPublish) return
       const id = this.data.publishMealId
       if (!id) return
+      this.setData({ submittingPublish: true })
       try {
+        try { wx.showLoading({ title: '处理中...', mask: true }) } catch { }
         await this.ensureLogin()
         await api.request(`/meals/${id}/cancel`, { method: 'POST' })
         wx.showToast({ title: '已撤单', icon: 'success' })
@@ -369,6 +451,33 @@ Component({
         this.rebuildWeeks(curStart)
       } catch (e: any) {
         wx.showToast({ title: e?.message || '操作失败', icon: 'none' })
+      } finally {
+        try { wx.hideLoading() } catch { }
+        this.setData({ submittingPublish: false })
+      }
+    },
+    async onMealUnlock() {
+      if (this.data.submittingPublish) return
+      const id = this.data.publishMealId
+      if (!id) return
+      this.setData({ submittingPublish: true })
+      try {
+        try { wx.showLoading({ title: '处理中...', mask: true }) } catch { }
+        await this.ensureLogin()
+        await api.request(`/meals/${id}/unlock`, { method: 'POST' })
+        wx.showToast({ title: '已取消锁定', icon: 'success' })
+        this.setData({ showPublish: false })
+        // refresh cache for current window
+        const anchor = parseDate(this.data.anchorDate)
+        const curStart = getMondayStart(anchor)
+        const months = windowMonthsForNineWeeks(curStart)
+        await this.ensureCacheMonths(months, true, true)
+        this.rebuildWeeks(curStart)
+      } catch (e: any) {
+        wx.showToast({ title: e?.message || '操作失败', icon: 'none' })
+      } finally {
+        try { wx.hideLoading() } catch { }
+        this.setData({ submittingPublish: false })
       }
     },
     async ensureCacheMonths(months: string[], silent = false, force = false) {
@@ -447,38 +556,46 @@ Component({
     },
     measureViewportAndCenter() {
       const q = wx.createSelectorQuery().in(this as any)
-      q.select('.cal-viewport').boundingClientRect((rect) => {
-        if (!rect || !rect.height) return
-        const h = Math.floor(rect.height)
+      q.select('.cal-viewport').boundingClientRect()
+      q.select('.scrollarea').boundingClientRect()
+      q.exec((res: any[]) => {
+        let h = 0
+        const v1 = res && res[0]
+        const v2 = res && res[1]
+        if (v1 && v1.height) h = Math.floor(v1.height)
+        else if (v2 && v2.height) h = Math.floor(v2.height)
+        if (!h || h <= 0) {
+          try {
+            const sys = wx.getSystemInfoSync()
+            if (sys && sys.windowHeight) h = Math.floor(sys.windowHeight * 0.66) // fallback: use 2/3 of window
+          } catch { }
+        }
+        if (!h || h <= 0) return
         // center current three-week page in middle of 3 pages => base = -h
-        this.setData({ blockH: h, trackBase: -h })
-      }).exec()
+        this.setData({ blockH: h, trackBase: -h, trackY: 0, trackHeight: h * 3 })
+      })
     },
     buildWeek(start: Date, byKey: Map<string, any>, anchor: Date) {
       const todayStr = formatDate(new Date())
-      const weekCells: any[] = new Array(7)
-      for (let dIdx = 0; dIdx < 7; dIdx++) {
+      const cells: any[] = []
+      // Layout order: Sun(prev) | Mon Tue Wed Thu Fri | Sat(this)
+      // Indices relative to Monday-start: -1, 0, 1, 2, 3, 4, 5
+      for (let rel = -1; rel <= 5; rel++) {
         const d = new Date(start)
-        d.setDate(start.getDate() + dIdx)
+        d.setDate(start.getDate() + rel)
         const dM = `${d.getMonth() + 1}`.padStart(2, '0')
         const dD = d.getDate()
         const dateStr = `${d.getFullYear()}-${dM}-${`${dD}`.padStart(2, '0')}`
         const dow = (d.getDay() + 6) % 7 // 0-6 => Mon..Sun
         const dowStr = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'][dow]
-        const isWeekend = dow >= 5
+        const isWeekend = dow >= 5 || d.getDay() === 0
         const isCurrentMonth = (d.getFullYear() === anchor.getFullYear() && d.getMonth() === anchor.getMonth())
-        // anchor year unused for labels after switching to real-time month/year checks
-        // Use the real current month for label formatting to keep DD for 本月 regardless of anchor
         const now = new Date()
         const isThisMonthNow = (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth())
         const isThisYearNow = (d.getFullYear() === now.getFullYear())
         const lunch = byKey.get(`${dateStr}_lunch`)
         const dinner = byKey.get(`${dateStr}_dinner`)
         const toCell = (it: any) => toSlotView(it)
-        // date label rules:
-        // - if weekend OR current month => 'DD'
-        // - else if not current year (and not weekend) => 'YY/MM/DD'
-        // - else (not current month, same year, not weekend) => 'MM/DD'
         const DD = `${dD}`.padStart(2, '0')
         const MM = dM
         const YY = `${d.getFullYear()}`.slice(2)
@@ -490,7 +607,7 @@ Component({
         } else {
           dateLabel = `${MM}/${DD}`
         }
-        weekCells[dIdx] = {
+        cells.push({
           dateKey: dateStr,
           day: dD,
           isCurrentMonth,
@@ -500,11 +617,9 @@ Component({
           lunch: toCell(lunch),
           dinner: toCell(dinner),
           dateLabel,
-        }
+        })
       }
-      // reorder to Sun(6), Mon(0) .. Fri(4), Sat(5)
-      const order = [6, 0, 1, 2, 3, 4, 5]
-      return order.map(i => weekCells[i])
+      return cells
     },
     async fetchMealDetail(mealId: number) {
       await this.ensureLogin()
@@ -648,10 +763,13 @@ Component({
         })
         // ensure viewport measured and track is centered on middle page
         if (!this.data.blockH || this.data.blockH <= 0) {
+          // 确保日历已渲染（关闭 loading）再测量，否则会得到 0 高度
+          if (!silent) this.setData({ loading: false })
           wx.nextTick(() => this.measureViewportAndCenter())
         } else {
-          // if already measured, just set base to -H
-          this.setData({ trackBase: -this.data.blockH })
+          // if already measured, just set base to -H and update total track height
+          const H = this.data.blockH
+          this.setData({ trackBase: -H, trackY: 0, trackHeight: H * 3 })
         }
       } catch (e: any) {
         const msg = (e && (e as any).message) || '加载失败'
@@ -732,6 +850,10 @@ Component({
         ? (e as any).detail
         : (e.currentTarget && (e.currentTarget as any).dataset) || {}
       const { mealId, status, date, slot, left, my } = ds
+      // 记录最近一次点击的日期和餐次，用于发布时自动填充
+      if (date && slot) {
+        this.setData({ lastPublishDate: String(date), lastPublishSlot: String(slot) as any })
+      }
       if (status === 'none') {
         if (this.data.adminView) {
           // open publish dialog for this date+slot (weekday only; weekend slots not rendered)
@@ -768,6 +890,20 @@ Component({
       const tab = (this as any).getTabBar && (this as any).getTabBar()
       if (tab && typeof tab.updateSelected === 'function') {
         tab.updateSelected()
+      }
+      // 若DB Key发生变更（例如在“我的”页设置/修改），则清缓存并强制刷新日历
+      const curKey = getDbKey() || ''
+      const prevKey = (this as any)._dbKeyPrev || ''
+      if (curKey !== prevKey) {
+        this.onDbKeyChanged(curKey)
+      }
+      // 如仍未设置口令，则提示设置
+      if (!curKey) {
+        setTimeout(() => this.promptPassphraseOnCalendar(), 50)
+      }
+      // 若尚未完成测量，补一次测量与居中
+      if (!this.data.blockH || this.data.blockH <= 0) {
+        wx.nextTick(() => this.measureViewportAndCenter())
       }
     }
   }

@@ -15,15 +15,18 @@
 
 TODO: 集成真实的微信code2session API
 """
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from ..utils.security import create_token
+from ..config import get_mock_settings
 
 router = APIRouter()
 
 
 class LoginReq(BaseModel):
     """登录请求体，包含微信登录code"""
+
     code: str  # 微信wx.login返回的临时code
 
 
@@ -32,13 +35,13 @@ def login(req: LoginReq):
     """
     微信小程序登录认证
     将微信临时code转换为应用JWT token
-    
+
     Args:
         req: 包含微信code的登录请求
-        
+
     Returns:
         dict: 包含JWT token和用户基本信息的响应
-        
+
     Note:
         当前为开发环境模拟，实际部署时需要：
         1. 调用微信code2session API验证code
@@ -49,17 +52,26 @@ def login(req: LoginReq):
     # TODO: 集成微信code2session API
     # 正式环境需要调用：
     # https://api.weixin.qq.com/sns/jscode2session?appid={appid}&secret={secret}&js_code={code}&grant_type=authorization_code
-    open_id = f"dev_{req.code}"  # 开发环境模拟
-    
+    # 如果开启 mock，则使用固定 open_id
+    mock = get_mock_settings()
+    if mock.get("mock_enabled") and mock.get("open_id"):
+        # 支持按登录生成唯一 open_id，便于区分“新用户”
+        if bool(mock.get("unique_per_login")) and req.code:
+            open_id = f"{str(mock.get('open_id'))}_{req.code}"
+        else:
+            open_id = str(mock.get("open_id"))
+    else:
+        open_id = f"dev_{req.code}"  # 开发环境模拟
+
     token = create_token(open_id)
-    
+
     # 返回最小用户信息，避免敏感数据泄露
     return {
         "token": token,
         "user": {
-            "id": None,  # 数据库用户ID，首次登录时为空
-            "nickname": None,  # 用户昵称，需要用户授权后获取
-            "avatar": None,   # 头像URL，需要用户授权后获取
-            "is_admin": False,  # 管理员标识，从数据库查询
+            "id": None,
+            "nickname": mock.get("nickname") if mock.get("mock_enabled") else None,
+            "avatar": None,
+            "is_admin": False,
         },
     }

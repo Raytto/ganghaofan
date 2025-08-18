@@ -16,13 +16,62 @@
 
 const BASE_URL = 'http://127.0.0.1:8000/api/v1';
 const TOKEN_KEY = 'auth_token';
+const DB_KEY_MAP_KEY = 'db_key_map'; // { [open_id]: key }
+const CURRENT_OPEN_ID_KEY = 'current_open_id';
 
 export function getToken(): string | null {
     try { return wx.getStorageSync(TOKEN_KEY) || null; } catch { return null; }
 }
 
 export function setToken(t: string) {
-    try { wx.setStorageSync(TOKEN_KEY, t); } catch { }
+    try {
+        wx.setStorageSync(TOKEN_KEY, t);
+        // reset cached open_id on new token to ensure proper per-user scoping
+        try { wx.removeStorageSync(CURRENT_OPEN_ID_KEY); } catch { }
+    } catch { }
+}
+
+export function getCurrentOpenId(): string | null {
+    try { return wx.getStorageSync(CURRENT_OPEN_ID_KEY) || null; } catch { return null; }
+}
+
+async function ensureCurrentOpenId(): Promise<string | null> {
+    let oid = getCurrentOpenId();
+    if (oid) return oid;
+    try {
+        const u: any = await request('/users/me', { method: 'GET' });
+        oid = (u && u.open_id) ? String(u.open_id) : null;
+        if (oid) wx.setStorageSync(CURRENT_OPEN_ID_KEY, oid);
+        return oid;
+    } catch {
+        return null;
+    }
+}
+
+export function getDbKey(): string | null {
+    try {
+        const map = (wx.getStorageSync(DB_KEY_MAP_KEY) || {}) as Record<string, string>;
+        const oid = getCurrentOpenId();
+        if (oid && map && typeof map === 'object' && map[oid]) return map[oid];
+        // no user-scoped key yet
+        return null;
+    } catch { return null; }
+}
+
+export function setDbKey(k: string | null) {
+    try {
+        const oid = getCurrentOpenId();
+        if (oid) {
+            const map = (wx.getStorageSync(DB_KEY_MAP_KEY) || {}) as Record<string, string>;
+            if (k) {
+                map[oid] = k;
+            } else {
+                if (oid in map) delete map[oid];
+            }
+            wx.setStorageSync(DB_KEY_MAP_KEY, map);
+        }
+        // do not update legacy global key to avoid bleeding across users
+    } catch { }
 }
 
 /**
@@ -38,7 +87,9 @@ async function request<T = any>(
         const headers: Record<string, string> = options.header ? { ...(options.header as any) } : {};
         const token = getToken();
         if (token) headers['Authorization'] = `Bearer ${token}`;
-        
+        const dbKey = getDbKey();
+        if (dbKey) headers['X-DB-Key'] = dbKey;
+
         return new Promise((resolve, reject) => {
             wx.request({
                 ...options,
@@ -60,7 +111,7 @@ async function request<T = any>(
             })
         })
     }
-    
+
     try {
         return await doOnce()
     } catch (e: any) {
@@ -89,6 +140,8 @@ export async function loginAndGetToken(): Promise<string> {
     });
     const data = await request<{ token: string }>(`/auth/login`, { method: 'POST', data: { code: loginRes.code } });
     setToken(data.token);
+    // store current open_id for per-user DB key scoping
+    try { await ensureCurrentOpenId(); } catch { }
     return data.token;
 }
 
@@ -137,5 +190,9 @@ export async function getCalendarBatch(months: string[]): Promise<{ months: Reco
     return request(`/calendar/batch?months=${q}`, { method: 'GET' });
 }
 
+export async function resolvePassphrase(passphrase: string): Promise<{ key: string }> {
+    return request('/env/resolve', { method: 'POST', data: { passphrase } });
+}
+
 // 导出API对象供其他模块使用
-export const api = { request, loginAndGetToken, getCalendar, getCalendarBatch };
+export const api = { request, loginAndGetToken, getCalendar, getCalendarBatch, resolvePassphrase };

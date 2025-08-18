@@ -6,8 +6,10 @@ Component({
         original: { type: Object, value: {} },
         readonly: { type: Boolean, value: false },
         needsRepost: { type: Boolean, value: false },
+        submitting: { type: Boolean, value: false },
     },
     methods: {
+        noop() { },
         onCloseMask() { this.triggerEvent('close'); },
         onClose() { this.triggerEvent('close'); },
         onInput(e: WechatMiniprogram.Input) {
@@ -40,8 +42,13 @@ Component({
             const ds = e.currentTarget.dataset as any;
             this.triggerEvent('adjustoption', { idx: Number(ds?.idx), step: Number(ds?.step || 0) });
         },
-        onSubmit() { this.triggerEvent('submit'); },
+        onSubmit() {
+            // fire both names to avoid any framework-specific collision with native 'submit'
+            this.triggerEvent('submit');
+            this.triggerEvent('publish');
+        },
         onCancelMeal() { this.triggerEvent('cancelmeal'); },
         onLockMeal() { this.triggerEvent('lockmeal'); },
+        onUnlockMeal() { this.triggerEvent('unlockmeal'); },
     }
 })

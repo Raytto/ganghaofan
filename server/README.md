@@ -26,6 +26,21 @@ API base: http://127.0.0.1:8000/api/v1
 
 Data file: `server/data/ganghaofan.duckdb` (auto-created).
 
+Multi-DB (by passphrase key):
+- Configure mappings in `server/config/passphrases.json` or env var `GHF_PASSPHRASE_MAP`.
+- On server startup, all configured keys are proactively initialized:
+	- DB files at `server/data/ganghaofan_{key}.duckdb` are created if missing.
+	- Schema is ensured/updated idempotently.
+- Client passes `X-DB-Key: <key>` automatically after you set the passphrase in the app.
+
+Dev mock login (optional):
+- Edit `server/config/dev_mock.json`:
+	- `mock_enabled`: true/false
+	- `open_id`: fixed openid to use when mock is enabled
+	- `nickname`: nickname to prefill in users table on first access
+- Alternatively set env `GHF_MOCK_AUTH` to a JSON string with the same fields.
+- When enabled, `/auth/login` returns a token for the fixed open_id.
+
 ## Notes
 - Immediate debit on order create; refund on cancel; modify = cancel + create
 - Boolean options only; balance can be negative
@@ -64,3 +79,6 @@ See doc/agent_to_do/step_5_dev_deploy.md
 		conda activate ghf-server
 		python -m pip install python-jose duckdb
 		```
+ - 看不到“test”空间的日历
+	 - 说明：`test` 是独立库，首次为空。
+	 - 解决：服务启动时已自动创建并初始化 `server/data/ganghaofan_test.duckdb`。请在“管”视图发布餐次，或复制默认库数据（可选）。

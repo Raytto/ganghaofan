@@ -3,6 +3,13 @@
   <view class="page theme-bg">
     <!-- 余额信息 -->
     <view class="section">
+      <view class="profile-card">
+        <view class="row"><text class="label theme-text">用户ID：</text><text class="value theme-text">{{user.user_id || '—'}}</text></view>
+        <view class="row"><text class="label theme-text">OpenID：</text><text class="value theme-text mono">{{user.open_id || '—'}}</text></view>
+        <view class="row"><text class="label theme-text">昵称：</text><text class="value theme-text">{{user.nickname || '未设置'}}</text></view>
+        <view class="row"><text class="label theme-text">口令 Key：</text><text class="value theme-text mono">{{dbKey || '（未设置）'}}</text></view>
+        <button class="pass-btn" size="mini" bind:tap="onSetPassphrase">对口令</button>
+      </view>
       <view class="balance-card">
         <view class="balance-title theme-text">账户余额</view>
         <view class="balance-amount theme-text">

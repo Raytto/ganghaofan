@@ -25,9 +25,11 @@
 </view>
 
 <view class="scrollarea">
-  <view wx:if="{{loading}}" class="loading">加载中...</view>
-  <view wx:elif="{{tip}}" class="error">{{tip}}</view>
-  <view wx:else class="calendar">
+  <view wx:if="{{tip}}" class="error">{{tip}}</view>
+  <view class="calendar">
+    <block wx:if="{{loading}}">
+      <view class="loading-overlay">加载中...</view>
+    </block>
     <view class="week-header">
       <text class="w-wknd"></text>
       <text class="w-wk">星期一</text>
@@ -37,47 +39,45 @@
       <text class="w-wk">星期五</text>
       <text class="w-wknd"></text>
     </view>
-  <view class="cal-viewport" bindtouchstart="onCalTouchStart" catchtouchmove="onCalTouchMove" bindtouchend="onCalTouchEnd">
-  <view class="cal-track {{trackAnimate ? 'animate' : ''}}" style="transform: translateY({{trackBase + trackY}}px);">
+  <view class="cal-viewport" bindtouchstart="onCalTouchStart" catchtouchmove="onCalTouchMove" bindtouchend="onCalTouchEnd" style="{{blockH > 0 ? ('height:' + blockH + 'px;') : ''}}">
+    <view class="cal-track {{trackAnimate ? 'animate' : ''}}" style="transform: translateY({{trackBase + trackY}}px); height: {{trackHeight > 0 ? trackHeight + 'px' : '720px'}};">
       <block wx:for="{{weeks9}}" wx:key="idx" wx:for-index="idx" wx:for-item="weekArr">
-        <view class="month-block">
-          <view class="grid grid7">
-            <view class="week-row">
-              <block wx:for="{{weekArr}}" wx:key="dateKey" wx:for-item="item">
-                <view class="cell {{item.isWeekend ? 'wknd' : 'wk'}}">
-                  <view class="date {{item.isToday ? 'today' : ''}}">
-                    <text class="date-num">{{item.dateLabel || item.day}}</text>
+        <view class="week-row">
+          <block wx:for="{{weekArr}}" wx:key="dateKey" wx:for-item="item">
+            <view class="cell {{item.isWeekend ? 'wknd' : 'wk'}}">
+              <view class="date {{item.isToday ? 'today' : ''}}">
+                <text class="date-num">{{item.dateLabel || item.day}}</text>
+              </view>
+              <block wx:if="{{!item.isWeekend}}">
+                <view class="slots">
+                  <view class="slot-wrap">
+                    <slot-card
+                      label="午餐"
+                      type="lunch"
+                      view="{{item.lunch}}"
+                      date="{{item.dateKey}}"
+                      meal-slot="lunch"
+                      bind:tapslot="onTapSlot"
+                    />
                   </view>
-                  <block wx:if="{{!item.isWeekend}}">
-                    <view class="slots">
-                      <slot-card
-                        label="午餐"
-                        type="lunch"
-                        view="{{item.lunch}}"
-                        date="{{item.dateKey}}"
-                        slot="lunch"
-                        bind:tapslot="onTapSlot"
-                        style="flex:1 1 0; display:flex;"
-                      />
-                      <slot-card
-                        label="晚餐"
-                        type="dinner"
-                        view="{{item.dinner}}"
-                        date="{{item.dateKey}}"
-                        slot="dinner"
-                        bind:tapslot="onTapSlot"
-                        style="flex:1 1 0; display:flex; margin-top:2px;"
-                      />
-                    </view>
-                  </block>
+                  <view class="slot-wrap">
+                    <slot-card
+                      label="晚餐"
+                      type="dinner"
+                      view="{{item.dinner}}"
+                      date="{{item.dateKey}}"
+                      meal-slot="dinner"
+                      bind:tapslot="onTapSlot"
+                    />
+                  </view>
                 </view>
               </block>
             </view>
-          </view>
+          </block>
         </view>
       </block>
     </view>
-    </view>
+  </view>
   </view>
 </view>
 
@@ -89,6 +89,7 @@
   original="{{publishOriginal}}"
   readonly="{{publishReadonly}}"
   needsRepost="{{publishNeedsRepost}}"
+  submitting="{{submittingPublish}}"
   bind:close="closePublishDialog"
   bind:input="onPublishInput"
   bind:number="onPublishNumberInput"
@@ -98,8 +99,11 @@
   bind:optioninput="onOptionInput"
   bind:adjustoption="onAdjustOptionPrice"
   bind:submit="onPublishSubmit"
+  bindsubmit="onPublishSubmit"
+  bind:publish="onPublishSubmit"
   bind:cancelmeal="onMealCancel"
   bind:lockmeal="onMealLock"
+  bind:unlockmeal="onMealUnlock"
 />
 
 <!-- User Order Dialog (component) -->

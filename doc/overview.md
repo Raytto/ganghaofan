@@ -28,9 +28,13 @@ client/
       profile/         # 个人中心（所有用户）
       logs/            # 日志页（占位）
     utils/
-      api.ts           # 网络封装、登录与日历 API
+      api.ts           # 网络封装、登录与日历 API（含按 open_id 作用域的 DB Key 存取）
+      passphrase.ts    # 口令设置弹窗的共用助手（confirm-only + 失败自动重试）
   typings/             # TS 类型声明
 server/                # FastAPI 服务（日历、餐次、鉴权等）
+  config/
+    passphrases.json   # 口令 → 数据库 Key 映射（白名单）
+    dev_mock.json      # 开发期 mock 登录配置（可选）
 ```
 
 ## 全局主题与样式
@@ -52,6 +56,25 @@ server/                # FastAPI 服务（日历、餐次、鉴权等）
   - `loginAndGetToken()`：登录并缓存 token。
   - `getCalendar(month)`：获取单月日历。
   - `getCalendarBatch(months: string[])`：批量获取多月（首页一次取前/当前/后 3 个月窗口）。
+  - 多数据库路由：前端在请求头携带 `X-DB-Key`，由服务器基于该 Key 选择 DuckDB 文件。
+  - DB Key 按用户作用域：小程序端以 `open_id` 为粒度在本地存储 `db_key_map`，不同用户互不干扰；登录成功（设置新 token）时会清空缓存的 `current_open_id`，并通过 `/users/me` 拉取与持久化当前 `open_id`。
+  - 口令解析：前端调用 `POST /env/resolve { passphrase }` 换取 `key`，失败返回 400 并提示“口令没对上”。
+
+## 多数据库与口令（2025-08）
+- 白名单映射：`server/config/passphrases.json` 定义“口令 → DB Key”的映射。后端严格校验，未配置的口令一律 400 “口令没对上”。
+- 共用弹窗：新增 `utils/passphrase.ts` 暴露 `promptPassphrase()`，统一弹窗样式与交互：
+  - 仅一个“确定”按钮（不显示“取消”）。
+  - 为空或无效口令时，toast 提示并自动再次弹出，直至输入合法。
+  - 成功后持久化 DB Key 并提示“已设置口令”。
+- 首次提示策略：
+  - 首页（index）：页面挂载时若无 DB Key，先弹口令，不加载数据；设置成功后重置日历缓存并基于新库预加载 3 个月窗口。
+  - 个人中心（profile）：进入页面若无 DB Key，同样弹出口令；设置成功后更新页面展示。
+- 请求路由：所有 API 调用自动携带当前用户作用域下的 `X-DB-Key`。
+- 服务端启动：读取映射，启动阶段主动初始化默认库与所有已配置 DB（不存在则创建并建表）。
+- 开发 Mock：
+  - `server/config/dev_mock.json` 或环境变量开启 mock 登录（固定/或每次唯一的 open_id，字段：`mock_enabled`、`open_id`、`nickname`、`unique_per_login`）。
+  - `GET /env/mock` 返回当前 mock 配置，前端“个人中心”可据此补齐昵称展示。
+  - 用户首次访问的创建逻辑做了幂等处理，避免并发下唯一约束导致 500。
 
 ## 页面一览
 
@@ -81,6 +104,7 @@ server/                # FastAPI 服务（日历、餐次、鉴权等）
     - 9 周窗口缓存与吸附滚动；进入时测量视口并将“本周”居中；
     - 触摸事件：日历区域内捕获 move，允许子元素 tap；
     - `onTapSlot`：用户视图进入下单；管理员视图点击未发布则打开发布弹窗；
+  - 口令：若当前用户未设置 DB Key，则先弹出“口令设置”对话框（确认后才加载数据）。
   - `onPublishSubmit()`：创建态调用 `POST /meals`；编辑态根据是否为“危险修改”调用 `POST /meals/{id}/repost`（取消并退款所有已订）或 `PUT /meals/{id}`（直接修改）。成功后更新本地周数据与缓存，关闭弹窗。
   - 数据字段：`weeks9/trackY/trackBase/trackAnimate/adminView/canAdmin/showPublish/publishForm` 等。
 
@@ -92,7 +116,8 @@ server/                # FastAPI 服务（日历、餐次、鉴权等）
 - 作用：用户个人信息管理与设置。
 - 功能：
   - 深色模式开关：用户可在此页面切换深色/浅色模式，偏好持久化存储。
-  - 用户信息展示（占位）。
+  - 用户信息与余额：展示 `user_id/open_id/nickname` 与余额；后端并发安全，异常不致崩溃。
+  - 口令设置：复用共用弹窗；无 DB Key 时自动提示；设置成功后更新本页 DB Key 显示。
 - 实现：通过全局状态管理主题切换，影响整个应用的配色方案。
 
 ### 4) 日志页：`pages/logs`
@@ -120,6 +145,13 @@ server/                # FastAPI 服务（日历、餐次、鉴权等）
 - 使用：在 `pages/index` 绑定到对应的页面方法（页面仍负责实际业务与 API 调用）。
 
 ### order-dialog
+### 口令设置弹窗（共用）
+- 入口：`utils/passphrase.ts` 的 `promptPassphrase()`；被首页与个人中心复用。
+- 交互：
+  - 仅保留底部“确定”按钮；无“取消”。
+  - 输入为空或无效时，toast 提示（分别为“请输入口令”/“口令没对上”）并自动再次弹出。
+  - 输入合法时，调用 `/env/resolve` 并保存 DB Key，toast “已设置口令”。
+
 - 作用：承载“下单/修改/查看”弹窗 UI。
 - 属性：`show` 是否可见；`detail` 详情（包含 date/slot/ordered_qty/capacity/options/action/readonlyMsg）。
 - 事件：`close` 关闭；`create` 下单；`update` 修改；`cancelorder` 撤单。
@@ -141,6 +173,8 @@ server/                # FastAPI 服务（日历、餐次、鉴权等）
   - `GET /calendar?month=YYYY-MM`：单月餐次；
   - `GET /calendar/batch?months=YYYY-MM,YYYY-MM,...`：多月批量；
   - `GET /meals/{meal_id}`：餐次详情。
+  - `POST /env/resolve`：解析口令为 DB Key（严格白名单，失败 400）。
+  - `GET /env/mock`：返回开发期 mock 配置（是否开启、昵称、open_id 策略等）。
   - `POST /meals`（管理员）：创建餐次。请求体：`{ date, slot, title?, description?, base_price_cents, options:[{id,name,price_cents}], capacity }`（单人限购移除，后端下单逻辑限制每人每餐仅 1 单）。
   - `PUT /meals/{meal_id}`（管理员）：在 `status='published'` 下直接修改餐次（不影响已订订单）。
   - `POST /meals/{meal_id}/repost`（管理员）：危险修改路径，更新餐次字段并取消/退款当前餐次下所有“已订”订单；保持同一 `meal_id`。
@@ -193,6 +227,7 @@ server/                # FastAPI 服务（日历、餐次、鉴权等）
 - 布局：使用 Flex，避免 CSS Grid 与不支持的属性；
 - 滚动：日历区域独立捕获 `touch`，防止整页滚动；
 - 时间：统一 `YYYY-MM` / `YYYY-MM-DD`；周起始为周一；
+- 多库：所有请求附带 `X-DB-Key`；DB Key 存储按 `open_id` 作用域隔离，切换用户不会串库。
 - 颜色：
   - 页面背景 `#1B1B1B`；标题栏 `#1B1B1B`；日历格 `#131314`；
   - 主文字 `#C9D1D9`，次级 `#8b949e`；
@@ -294,120 +329,7 @@ server/                # FastAPI 服务（日历、餐次、鉴权等）
 - 管理修改需区分直接修改与取消重发；后者需要退款所有已订用户，原餐次置 canceled，新建餐次。
 
 ## 代码注释规范
-
-为了便于 agent 后续阅读/搜索/定位代码，同时方便开发者 Review 代码，制定以下注释规范：
-
-### 注释层次
-
-#### 文件/模块注释
-- **目的**：说明这个文件/模块是干什么的、对外提供什么接口
-- **位置**：文件顶部，通常在 import 语句之前或之后
-- **格式**：使用文档字符串或块注释
-- **示例**：
-  ```python
-  """
-  餐次管理路由模块
-  提供餐次的创建、查询、修改、锁定、取消等核心业务接口
-  主要服务于前端日历页面和管理员操作
-  """
-  ```
-
-#### 函数/类注释（docstring）
-- **目的**：说明输入、输出、核心逻辑、注意事项
-- **内容包括**：
-  - 函数功能概述
-  - 参数说明（类型和含义）
-  - 返回值说明
-  - 可能抛出的异常
-  - 业务约束和注意事项
-- **示例**：
-  ```python
-  def get_calendar_batch(months: str, open_id: str):
-      """
-      批量获取多个月份的餐次日历数据
-      
-      Args:
-          months: 逗号分隔的月份列表，格式 "YYYY-MM,YYYY-MM"
-          open_id: 用户微信openid，用于计算用户订餐状态
-          
-      Returns:
-          dict: 包含 months 字段的字典，value 为各月餐次列表
-          
-      Raises:
-          HTTPException: 当月份格式错误时返回 400
-          
-      Note:
-          自动计算用户在每个餐次的订餐状态(my_ordered)
-          月份格式严格校验，必须为 YYYY-MM 格式
-      """
-  ```
-
-#### 关键逻辑的行内注释
-- **目的**：解释"为什么这样写"，而不是"这行做了什么"
-- **原则**：代码本身应该能说明"做了什么"，注释重点说明"为什么"
-- **示例**：
-  ```typescript
-  // 先执行自动登录重试，避免用户手动处理401错误
-  if (e && (e.code === 401 || e.code === '401')) {
-      try { await loginAndGetToken() } catch { /* ignore */ }
-      return await doOnce()
-  }
-  ```
-
-### 建议的详细程度
-
-#### 避免"废话注释"
-❌ **不好的例子**：
-```python
-# 设置用户ID为1
-user_id = 1
-
-# 循环遍历订单列表
-for order in orders:
-```
-
-✅ **好的例子**：
-```python
-# 使用事务确保订单取消和余额退款的原子性
-con.execute("BEGIN")
-try:
-    # 批量处理避免大事务超时，但保证单个订单的一致性
-    for order in orders:
-        refund_order(order)
-    con.execute("COMMIT")
-```
-
-#### 突出业务逻辑/设计意图
-重点写清"为什么"和"注意事项"：
-- 业务规则的背景和原因
-- 技术选型的考虑
-- 性能优化的权衡
-- 边界条件的处理
-- 与其他模块的依赖关系
-
-#### 适度即可
-- **目标**：别人能靠注释快速理解代码的结构和目的
-- **平衡**：仍需要读代码来理解细节实现
-- **原则**：注释过多会造成噪音，过少又难以维护
-
-### 不同文件类型的注释要求
-
-#### Python 后端文件
-- 模块级：使用 docstring 说明模块功能和主要接口
-- 类级：说明类的职责和主要方法
-- 函数级：完整的 docstring，包含参数、返回值、异常
-- 业务逻辑：重点注释业务规则和数据一致性考虑
-
-#### TypeScript 前端文件
-- 文件头：说明文件功能和主要导出
-- 组件/页面：说明组件职责和核心交互逻辑
-- 复杂函数：使用 JSDoc 格式注释
-- 状态管理：说明数据流和状态变更的业务含义
-
-#### 工具类文件
-- 重点说明工具函数的适用场景
-- 参数格式要求和返回值约定
-- 与业务逻辑的解耦考虑
+- 详见 doc/comment_std.md
 
 ---
 

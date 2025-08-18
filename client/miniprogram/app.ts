@@ -3,9 +3,9 @@ import { loginAndGetToken } from './utils/api'
 
 App<IAppOption>({
   globalData: {
-    debugMode: false,
+    debugMode: true,
     isAdmin: true,
-    adminViewEnabled: false,
+    adminViewEnabled: true,
     darkMode: true, // 默认深色模式开启
   },
   onLaunch() {
@@ -42,9 +42,9 @@ App<IAppOption>({
     const pages = getCurrentPages()
     pages.forEach(page => {
       if (page.setData) {
-        page.setData({ 
+        page.setData({
           themeClass: darkMode ? '' : 'light-theme',
-          darkMode: darkMode 
+          darkMode: darkMode
         })
       }
       // 更新自定义tab bar主题

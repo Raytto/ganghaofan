@@ -1,42 +1,70 @@
-import { api } from '../../utils/api'
+import { api, getDbKey } from '../../utils/api'
+import { promptPassphrase } from '../../utils/passphrase'
 
 Page({
     data: {
         darkMode: true,
         themeClass: '',
         balance: 0,
-        loadingBalance: false
+        loadingBalance: false,
+        dbKey: '',
+        user: {} as any
     },
     onShow() {
         const tab = (this as any).getTabBar && (this as any).getTabBar()
         if (tab && typeof (tab as any).updateSelected === 'function') {
             (tab as any).updateSelected()
         }
-        
+
         // 加载当前主题状态
         const app = getApp<IAppOption>()
         if (app && app.globalData) {
             const darkMode = !!app.globalData.darkMode
-            this.setData({ 
+            this.setData({
                 darkMode: darkMode,
                 themeClass: darkMode ? '' : 'light-theme'
             })
         }
-        
-        // 加载用户余额
+
+        // 加载用户信息和余额
+        this.loadUser()
         this.loadBalance()
+
+        // 显示当前DB key
+        const dbKey = getDbKey() || ''
+        this.setData({ dbKey })
+        if (!dbKey) {
+            promptPassphrase().then(key => { if (key) this.setData({ dbKey: key }) })
+        }
+    },
+    async loadUser() {
+        try {
+            const u = await api.request<any>('/users/me')
+            // 兼容开发：如果后端开启mock但未返回昵称，可从/env/mock补齐
+            if (!u?.nickname) {
+                try {
+                    const mock = await api.request<any>('/env/mock', { method: 'GET' })
+                    if (mock?.mock_enabled && mock?.nickname) {
+                        u.nickname = mock.nickname
+                    }
+                } catch { }
+            }
+            this.setData({ user: u })
+        } catch (e) {
+            console.warn('加载用户信息失败', e)
+        }
     },
     async loadBalance() {
         this.setData({ loadingBalance: true })
         try {
             const response = await api.request<{ user_id: number, balance_cents: number }>('/users/me/balance')
-            this.setData({ 
+            this.setData({
                 balance: response.balance_cents / 100 // 转换为元
             })
         } catch (error) {
             console.error('加载余额失败:', error)
-            wx.showToast({ 
-                title: '加载余额失败', 
+            wx.showToast({
+                title: '加载余额失败',
                 icon: 'none',
                 duration: 2000
             })
@@ -44,13 +72,17 @@ Page({
             this.setData({ loadingBalance: false })
         }
     },
+    async onSetPassphrase() {
+        const key = await promptPassphrase()
+        if (key) this.setData({ dbKey: key })
+    },
     onToggleDarkMode(e: WechatMiniprogram.SwitchChange) {
         const checked = !!(e && (e.detail as any).value)
         const app = getApp<IAppOption>()
         if (app && app.switchTheme) {
             app.switchTheme(checked)
         }
-        this.setData({ 
+        this.setData({
             darkMode: checked,
             themeClass: checked ? '' : 'light-theme'
         })

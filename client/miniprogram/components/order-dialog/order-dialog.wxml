@@ -13,7 +13,7 @@
         <text class="lbl">余额</text>
         <text class="val">{{(detail.balance_cents || 0) / 100}} 元</text>
       </view>
-      <view wx:if="{{(detail.balance_cents || 0) < (detail.total_cents || detail.base_price_cents || 0)}}" class="row"><text class="val warn-text">余额不足，请先充值</text></view>
+      <view wx:if="{{(detail.balance_cents || 0) < (detail.total_cents || detail.base_price_cents || 0)}}" class="row"><text class="val warn-text">余额不足，尽快充值</text></view>
       <view class="row col">
         <text class="lbl">描述</text>
         <view class="col-body"><text class="val">{{detail.description || '—'}}</text></view>

@@ -66,24 +66,30 @@ doc/                     # 项目文档
 
 ### 本地开发
 
-#### 1. 后端服务启动
+#### 1. 后端服务启动（Windows PowerShell）
 
-```bash
+```powershell
 # 克隆项目
 git clone <repository-url>
 cd ganghaofan
 
-# 创建并激活conda环境
+# 创建并激活 Conda 环境（推荐）
 conda env create -f server/environment.yml
 conda activate ghf-server
 
-# 启动后端服务
+# 启动后端服务（确保已激活 ghf-server 环境）
 python -m uvicorn server.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
-如果不想激活环境，可以使用一次性运行：
-```bash
+如果不想激活环境，可以使用一次性运行（避免 PATH/激活问题）：
+```powershell
 conda run -n ghf-server python -m uvicorn server.app:app --reload --host 127.0.0.1 --port 8000
+```
+
+若你看到错误 ModuleNotFoundError: No module named 'jose'，说明当前使用的是 base 环境或错误的 Python。
+请激活 ghf-server 后再运行，或直接使用环境内 Python 的绝对路径：
+```powershell
+& "D:\\ProgramData\\Anaconda3\\envs\\ghf-server\\python.exe" -m uvicorn server.app:app --reload --host 127.0.0.1 --port 8000
 ```
 
 #### 2. 前端开发

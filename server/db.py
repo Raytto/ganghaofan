@@ -14,17 +14,26 @@
 - ledger: 余额变动明细账
 - logs: 系统操作日志
 """
+
 import os
 import duckdb
+from contextvars import ContextVar
 from pathlib import Path
+from .config import get_passphrase_map
 
 # 数据文件存储目录，自动创建
 DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = DATA_DIR / "ganghaofan.duckdb"
 
+# 每个请求的数据库键（来自口令映射），默认空串表示默认库
+_current_db_key: ContextVar[str] = ContextVar("current_db_key", default="")
+
+# 连接池：不同 key 使用不同的连接
+_conns: dict[str, duckdb.DuckDBPyConnection] = {}
+
 # 全局数据库连接实例，延迟初始化
-_conn = None
+_conn = None  # 保留但不再使用（兼容旧代码）
 
 # 完整的表结构和索引定义
 # 使用序列生成自增主键，支持并发插入
@@ -108,42 +117,97 @@ CREATE INDEX IF NOT EXISTS idx_logs_action ON logs(action);
 """
 
 
+def set_request_db_key(key: str | None) -> None:
+    """在当前请求上下文设置数据库 key。"""
+    _current_db_key.set((key or "").strip())
+
+
+def _get_path_for_key(key: str) -> Path:
+    if not key:
+        return DB_PATH
+    return DATA_DIR / f"ganghaofan_{key}.duckdb"
+
+
 def get_conn():
     """
-    获取全局数据库连接实例
-    使用单例模式确保连接复用，避免频繁创建连接的开销
-    
-    Returns:
-        duckdb.DuckDBPyConnection: DuckDB数据库连接对象
+    获取（并按需创建）当前请求对应 key 的 DuckDB 连接。
     """
-    global _conn
-    if _conn is None:
-        _conn = duckdb.connect(str(DB_PATH))
-    return _conn
+    # 基于当前请求的 db key 选择连接
+    key = _current_db_key.get()
+    if key in _conns:
+        return _conns[key]
 
-
-def init_db():
-    """
-    初始化数据库表结构和扩展
-    
-    执行操作：
-    1. 安装并加载JSON扩展以支持JSON列类型
-    2. 创建所有必需的表和索引
-    
-    Note:
-        JSON扩展安装失败不会影响基本功能，因为表结构本身会处理JSON字段
-        该函数在应用启动时调用，确保数据库就绪
-    """
-    con = get_conn()
-    # 确保JSON扩展可用，用于处理options_json等字段
+    path = _get_path_for_key(key)
+    con = duckdb.connect(str(path))
+    # 确保扩展与表结构
     try:
         con.execute("INSTALL json")
     except Exception:
-        # 扩展可能已安装，忽略错误
         pass
     try:
         con.execute("LOAD json")
     except Exception:
-        # 扩展可能已加载，忽略错误
         pass
     con.execute(SCHEMA_SQL)
+    _conns[key] = con
+    return con
+
+
+def init_db():
+    """
+    初始化数据库表结构和扩展（默认库）。
+    """
+    # 初始化默认库结构
+    set_request_db_key("")
+    con = get_conn()
+    # 再次确保 JSON 扩展就绪
+    try:
+        con.execute("INSTALL json")
+    except Exception:
+        pass
+    try:
+        con.execute("LOAD json")
+    except Exception:
+        pass
+    con.execute(SCHEMA_SQL)
+
+
+def init_all_dbs():
+    """
+    启动时预初始化所有配置的数据库：
+    - 默认库（空key）
+    - 配置文件/环境变量映射到的所有 key 的库
+    若文件不存在会自动创建；若未建表会自动执行SCHEMA。
+    """
+    # 1) 默认库
+    init_db()
+    # 2) 通过配置获取所有 key（passphrase -> key 的值集合）
+    try:
+        mapping = get_passphrase_map() or {}
+        keys = sorted({str(v).strip() for v in mapping.values() if str(v).strip()})
+        for k in keys:
+            try:
+                set_request_db_key(k)
+                con = get_conn()  # get_conn 会确保 JSON 扩展和 SCHEMA
+                # 再执行一次 SCHEMA 以防版本更新（幂等）
+                con.execute(SCHEMA_SQL)
+            except Exception:
+                # 单库失败不阻塞其他库初始化
+                continue
+    finally:
+        # 恢复到默认 key，避免影响后续请求上下文
+        set_request_db_key("")
+
+
+# FastAPI 依赖：从请求头读取 X-DB-Key 并设置当前请求的数据库
+try:
+    from fastapi import Header
+    from typing import Optional
+
+    async def use_db_key(x_db_key: Optional[str] = Header(default=None)):
+        set_request_db_key(x_db_key)
+        return x_db_key or ""
+
+except Exception:
+    # 非运行期导入 fastapi 失败时忽略（便于类型检查）
+    pass

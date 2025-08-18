@@ -3,13 +3,17 @@
   left: 0; 
   right: 0; 
   bottom: 0; 
-  height: 50px; 
+  height: 30px; 
+  padding-bottom: constant(safe-area-inset-bottom); /* iOS < 11.2 fallback */
+  padding-bottom: env(safe-area-inset-bottom);      /* iOS 11.2+ */
   display: flex; 
   border-top: 0.5px solid rgba(255,255,255,0.08); 
+  background: #131314; /* solid background for dark theme */
 }
 
 .light-theme .tab-bar {
   border-top-color: rgba(0,0,0,0.08);
+  background: #F8F9FA; /* solid background for light theme */
 }
 
 .tab-item { 

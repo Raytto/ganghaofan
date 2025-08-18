@@ -67,6 +67,37 @@ def create_order(body: CreateOrderReq, open_id: str = Depends(get_open_id)):
     # TODO: validate options against meal options_json
     amount = base_price * body.qty + options_total
 
+    # map selected options for logging
+    selected_options = []
+    try:
+        meal_opts = json.loads(m[2]) if isinstance(m[2], str) else (m[2] or [])
+        opt_by_id = {}
+        try:
+            for o in meal_opts or []:
+                oid = (o.get("id") if isinstance(o, dict) else None) or None
+                if oid:
+                    opt_by_id[str(oid)] = o
+        except Exception:
+            opt_by_id = {}
+        for sid in body.options or []:
+            so = opt_by_id.get(str(sid))
+            if so:
+                selected_options.append(
+                    {
+                        "id": so.get("id"),
+                        "name": so.get("name"),
+                        "price_cents": so.get("price_cents"),
+                    }
+                )
+    except Exception:
+        selected_options = []
+
+    # balance before
+    bal_before_row = con.execute(
+        "SELECT balance_cents FROM users WHERE id=?", [uid]
+    ).fetchone()
+    balance_before = bal_before_row[0] if bal_before_row else 0
+
     con.execute("BEGIN")
     try:
         # insert order
@@ -89,7 +120,31 @@ def create_order(body: CreateOrderReq, open_id: str = Depends(get_open_id)):
         con.execute("ROLLBACK")
         raise
 
+    # log with balances and meal info
+    mrow = con.execute(
+        "SELECT date, slot, title FROM meals WHERE meal_id=?", [body.meal_id]
+    ).fetchone()
     bal = con.execute("SELECT balance_cents FROM users WHERE id=?", [uid]).fetchone()[0]
+    con.execute(
+        "INSERT INTO logs(user_id, actor_id, action, detail_json) VALUES (?,?,?,?)",
+        [
+            uid,
+            uid,
+            "order_create",
+            json.dumps(
+                {
+                    "meal_id": body.meal_id,
+                    "date": str(mrow[0]) if mrow else None,
+                    "slot": mrow[1] if mrow else None,
+                    "title": mrow[2] if mrow else None,
+                    "selected_options": selected_options,
+                    "amount_cents": amount,
+                    "balance_before_cents": balance_before,
+                    "balance_after_cents": bal,
+                }
+            ),
+        ],
+    )
     return {"order_id": order_id, "amount_cents": amount, "balance_cents": bal}
 
 
@@ -137,6 +192,12 @@ def update_order(
         con.execute("ROLLBACK")
         raise
 
+    # log update as modify
+    con.execute(
+        "INSERT INTO logs(user_id, actor_id, action, detail_json) VALUES (?,?,?,?)",
+        [uid, uid, "order_modify", json.dumps({"order_id": order_id})],
+    )
+
     # create new
     return create_order(
         CreateOrderReq(meal_id=meal_id, qty=body.qty, options=body.options), open_id
@@ -147,15 +208,21 @@ def update_order(
 def delete_order(order_id: int, open_id: str = Depends(get_open_id)):
     con = get_conn()
     row = con.execute(
-        "SELECT user_id, meal_id, amount_cents FROM orders WHERE order_id=? AND status='active'",
+        "SELECT user_id, meal_id, amount_cents, options_json FROM orders WHERE order_id=? AND status='active'",
         [order_id],
     ).fetchone()
     if not row:
         raise HTTPException(404, "order not active or not found")
-    uid, meal_id, amount = row
+    uid, meal_id, amount, ojson = row
     st = con.execute("SELECT status FROM meals WHERE meal_id=?", [meal_id]).fetchone()
     if not st or st[0] != "published":
         raise HTTPException(400, "cannot cancel after lock")
+
+    # balance before
+    bal_before_row = con.execute(
+        "SELECT balance_cents FROM users WHERE id=?", [uid]
+    ).fetchone()
+    balance_before = bal_before_row[0] if bal_before_row else 0
 
     con.execute("BEGIN")
     try:
@@ -176,5 +243,64 @@ def delete_order(order_id: int, open_id: str = Depends(get_open_id)):
         con.execute("ROLLBACK")
         raise
 
+    # build selected options
+    selected_options = []
+    try:
+        sel_ids = json.loads(ojson) if isinstance(ojson, str) else (ojson or [])
+        mrow = con.execute(
+            "SELECT options_json FROM meals WHERE meal_id=?", [meal_id]
+        ).fetchone()
+        meal_opts = (
+            json.loads(mrow[0])
+            if (mrow and isinstance(mrow[0], str))
+            else (mrow[0] if mrow else [])
+        )
+        opt_by_id = {}
+        try:
+            for o in meal_opts or []:
+                oid = (o.get("id") if isinstance(o, dict) else None) or None
+                if oid:
+                    opt_by_id[str(oid)] = o
+        except Exception:
+            opt_by_id = {}
+        if isinstance(sel_ids, list):
+            for sid in sel_ids:
+                so = opt_by_id.get(str(sid))
+                if so:
+                    selected_options.append(
+                        {
+                            "id": so.get("id"),
+                            "name": so.get("name"),
+                            "price_cents": so.get("price_cents"),
+                        }
+                    )
+    except Exception:
+        selected_options = []
+
+    # log with balances and meal info
+    mrow2 = con.execute(
+        "SELECT date, slot, title FROM meals WHERE meal_id=?", [meal_id]
+    ).fetchone()
     bal = con.execute("SELECT balance_cents FROM users WHERE id=?", [uid]).fetchone()[0]
+    con.execute(
+        "INSERT INTO logs(user_id, actor_id, action, detail_json) VALUES (?,?,?,?)",
+        [
+            uid,
+            uid,
+            "order_cancel",
+            json.dumps(
+                {
+                    "order_id": order_id,
+                    "meal_id": meal_id,
+                    "date": str(mrow2[0]) if mrow2 else None,
+                    "slot": mrow2[1] if mrow2 else None,
+                    "title": mrow2[2] if mrow2 else None,
+                    "amount_cents": amount,
+                    "selected_options": selected_options,
+                    "balance_before_cents": balance_before,
+                    "balance_after_cents": bal,
+                }
+            ),
+        ],
+    )
     return {"order_id": order_id, "balance_cents": bal, "status": "canceled"}

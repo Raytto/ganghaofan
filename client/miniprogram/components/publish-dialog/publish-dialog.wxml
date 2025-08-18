@@ -1,5 +1,5 @@
 <view wx:if="{{show}}" class="modal-mask" catchtouchmove="true" bindtap="onCloseMask">
-  <view class="modal" catchtap>
+  <view class="modal" catchtap="noop">
     <view class="modal-header">
       <text class="modal-title">{{mode==='edit' ? '编辑罡好饭' : '发布罡好饭'}}</text>
       <view class="icon-btn modal-close" bindtap="onClose">×</view>
@@ -30,15 +30,15 @@
       </view>
       <view class="opts-head">
         <text class="opts-title">可选项(名称和价格)</text>
-        <button wx:if="{{!readonly}}" class="btn-accent" size="mini" bindtap="onAddOption">添加</button>
+  <button wx:if="{{!readonly}}" class="btn-accent" size="mini" bindtap="onAddOption" disabled="{{submitting}}">添加</button>
       </view>
       <block wx:for="{{form.options}}" wx:key="id" wx:for-index="idx" wx:for-item="op">
         <view class="row opt-item">
           <input class="inp opt-name" placeholder="名称" value="{{op.name}}" data-idx="{{idx}}" data-field="name" bindinput="onOptionInput" disabled="{{readonly}}" />
           <view class="num opt-price">
-            <button class="btn-adjust" size="mini" data-idx="{{idx}}" data-step="-1" bindtap="onAdjustOption" disabled="{{readonly}}">-1</button>
-            <input class="inp-num" type="number" value="{{op.price}}" data-idx="{{idx}}" data-field="price" bindinput="onOptionInput" disabled="{{readonly}}" />
-            <button class="btn-adjust" size="mini" data-idx="{{idx}}" data-step="1" bindtap="onAdjustOption" disabled="{{readonly}}">+1</button>
+            <button class="btn-adjust" size="mini" data-idx="{{idx}}" data-step="-1" bindtap="onAdjustOption" disabled="{{readonly || submitting}}">-1</button>
+            <input class="inp-num" type="number" value="{{op.price}}" data-idx="{{idx}}" data-field="price" bindinput="onOptionInput" disabled="{{readonly || submitting}}" />
+            <button class="btn-adjust" size="mini" data-idx="{{idx}}" data-step="1" bindtap="onAdjustOption" disabled="{{readonly || submitting}}">+1</button>
           </view>
           <button wx:if="{{!readonly}}" class="btn-accent" size="mini" data-idx="{{idx}}" bindtap="onRemoveOption">删除</button>
         </view>
@@ -47,16 +47,17 @@
     </scroll-view>
     <view class="modal-footer">
       <block wx:if="{{mode==='create'}}">
-        <button class="btn-primary" bindtap="onSubmit">发布</button>
+          <button class="btn-primary" bindtap="onSubmit" disabled="{{submitting}}">发布</button>
       </block>
       <block wx:elif="{{mode==='edit'}}">
         <block wx:if="{{original && original.status==='published'}}">
-          <button class="btn-accent" bindtap="onCancelMeal">撤单</button>
-          <button class="btn-accent" bindtap="onLockMeal">锁定</button>
-          <button class="btn-primary" bindtap="onSubmit">修改</button>
+          <button class="btn-accent" bindtap="onCancelMeal" disabled="{{submitting}}">撤单</button>
+          <button class="btn-accent" bindtap="onLockMeal" disabled="{{submitting}}">锁定</button>
+          <button class="btn-primary" bindtap="onSubmit" disabled="{{submitting}}">修改</button>
         </block>
         <block wx:elif="{{original && original.status==='locked'}}">
-          <button class="btn-accent" bindtap="onCancelMeal">撤单</button>
+          <button class="btn-accent" bindtap="onCancelMeal" disabled="{{submitting}}">撤单</button>
+          <button class="btn-accent" bindtap="onUnlockMeal" disabled="{{submitting}}">取消锁定</button>
         </block>
       </block>
     </view>

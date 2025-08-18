@@ -1,5 +1,4 @@
 <!--logs.wxml-->
-<wxs src="./logs.wxs" module="utils" />
 <view class="{{themeClass}}">
   <navigation-bar title="活动日志" back="{{true}}" color="{{darkMode ? '#C9D1D9' : '#202124'}}" background="{{darkMode ? '#1B1B1B' : '#FFFFFF'}}"></navigation-bar>
   <scroll-view class="logs-container" scroll-y type="list" bindscrolltolower="onScrollToLower">
@@ -12,19 +11,19 @@
     
     <!-- 日志列表 -->
     <view class="logs-list">
-      <block wx:for="{{logs}}" wx:key="log_id" wx:for-item="log">
+  <block wx:for="{{logs}}" wx:key="log_id" wx:for-item="log">
         <view class="log-item">
           <view class="log-col time-col">
-            <view class="log-date">{{utils.formatTime(log.created_at).date}}</view>
-            <view class="log-time">{{utils.formatTime(log.created_at).time}}</view>
+    <view class="log-date">{{log.dateStr}}</view>
+    <view class="log-time">{{log.timeStr}}</view>
           </view>
           <view class="log-col operator-col">
-            <view class="operator-name">{{utils.formatOperator().name}}</view>
-            <view class="operator-id">{{utils.formatOperator().openid}}</view>
+    <view class="operator-name">{{log.operatorName}}</view>
+    <view class="operator-id">{{log.operatorId}}</view>
           </view>
           <view class="log-col content-col">
-            <view class="log-action">{{utils.formatAction(log.action)}}</view>
-            <view class="log-detail">{{utils.formatLogContent(log.action, log.detail)}}</view>
+    <view class="log-action">{{log.actionLabel}}</view>
+    <view class="log-detail">{{log.detailText}}</view>
           </view>
         </view>
       </block>
