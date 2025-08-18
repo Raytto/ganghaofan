@@ -6,7 +6,7 @@
 import json
 from typing import Any, Optional
 from ...db import get_conn
-from ...routers.users import _ensure_user
+from ..users import _ensure_user
 
 
 def parse_meal_options(options_json: Any) -> list[dict]:
