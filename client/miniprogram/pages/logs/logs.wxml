@@ -1,7 +1,48 @@
 <!--logs.wxml-->
-<navigation-bar title="查看启动日志" back="{{true}}" color="black" background="#FFF"></navigation-bar>
-<scroll-view class="scrollarea" scroll-y type="list">
-  <block wx:for="{{logs}}" wx:key="timeStamp" wx:for-item="log">
-    <view class="log-item">{{index + 1}}. {{log.date}}</view>
-  </block>
-</scroll-view>
+<wxs src="./logs.wxs" module="utils" />
+<view class="{{themeClass}}">
+  <navigation-bar title="活动日志" back="{{true}}" color="{{darkMode ? '#C9D1D9' : '#202124'}}" background="{{darkMode ? '#1B1B1B' : '#FFFFFF'}}"></navigation-bar>
+  <scroll-view class="logs-container" scroll-y type="list" bindscrolltolower="onScrollToLower">
+    <!-- 日志头部 -->
+    <view class="logs-header">
+      <view class="header-col">时间</view>
+      <view class="header-col">操作者</view>
+      <view class="header-col">日志内容</view>
+    </view>
+    
+    <!-- 日志列表 -->
+    <view class="logs-list">
+      <block wx:for="{{logs}}" wx:key="log_id" wx:for-item="log">
+        <view class="log-item">
+          <view class="log-col time-col">
+            <view class="log-date">{{utils.formatTime(log.created_at).date}}</view>
+            <view class="log-time">{{utils.formatTime(log.created_at).time}}</view>
+          </view>
+          <view class="log-col operator-col">
+            <view class="operator-name">{{utils.formatOperator().name}}</view>
+            <view class="operator-id">{{utils.formatOperator().openid}}</view>
+          </view>
+          <view class="log-col content-col">
+            <view class="log-action">{{utils.formatAction(log.action)}}</view>
+            <view class="log-detail">{{utils.formatLogContent(log.action, log.detail)}}</view>
+          </view>
+        </view>
+      </block>
+    </view>
+    
+    <!-- 加载状态 -->
+    <view class="loading-section" wx:if="{{loading}}">
+      <text class="loading-text">加载中...</text>
+    </view>
+    
+    <!-- 没有更多数据 -->
+    <view class="no-more-section" wx:if="{{!hasMore && logs.length > 0}}">
+      <text class="no-more-text">已加载全部日志</text>
+    </view>
+    
+    <!-- 空状态 -->
+    <view class="empty-section" wx:if="{{!loading && logs.length === 0}}">
+      <text class="empty-text">暂无日志记录</text>
+    </view>
+  </scroll-view>
+</view>

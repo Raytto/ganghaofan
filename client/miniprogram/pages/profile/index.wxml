@@ -1,14 +1,34 @@
 <view class="{{themeClass}}">
   <navigation-bar title="个人中心" back="{{false}}" color="{{darkMode ? '#C9D1D9' : '#202124'}}" background="{{darkMode ? '#1B1B1B' : '#FFFFFF'}}"></navigation-bar>
   <view class="page theme-bg">
+    <!-- 余额信息 -->
+    <view class="section">
+      <view class="balance-card">
+        <view class="balance-title theme-text">账户余额</view>
+        <view class="balance-amount theme-text">
+          <text wx:if="{{loadingBalance}}">加载中...</text>
+          <block wx:else>
+            <text class="currency">¥</text>
+            <text class="amount">{{balance}}</text>
+          </block>
+        </view>
+      </view>
+    </view>
+    
+    <!-- 功能按钮 -->
+    <view class="section">
+      <view class="menu-item" bind:tap="onGoToLogs">
+        <text class="menu-label theme-text">查看日志</text>
+        <text class="menu-arrow theme-text">></text>
+      </view>
+    </view>
+    
+    <!-- 设置 -->
     <view class="section">
       <view class="setting-item">
         <text class="setting-label theme-text">深色模式</text>
         <switch class="setting-switch" checked="{{darkMode}}" bind:change="onToggleDarkMode"/>
       </view>
-    </view>
-    <view class="section">
-      <text class="theme-text">用户信息（占位）</text>
     </view>
   </view>
 </view>
