@@ -1,16 +1,145 @@
-page {
+.logs-container {
   height: 100vh;
+  background: var(--bg-color, #0D1117);
+  color: var(--text-color, #C9D1D9);
+}
+
+.logs-header {
+  display: flex;
+  padding: 16px 12px 8px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+  position: sticky;
+  top: 0;
+  background: var(--bg-color, #0D1117);
+  z-index: 10;
+}
+
+.header-col {
+  font-weight: bold;
+  font-size: 14px;
+  opacity: 0.8;
+  text-align: center;
+}
+
+.header-col:nth-child(1) { /* 时间列 */
+  flex: 0 0 120px;
+}
+
+.header-col:nth-child(2) { /* 操作者列 */
+  flex: 0 0 100px;
+}
+
+.header-col:nth-child(3) { /* 内容列 */
+  flex: 1;
+  text-align: left;
+  padding-left: 8px;
+}
+
+.logs-list {
+  padding: 0 12px;
+}
+
+.log-item {
+  display: flex;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  align-items: flex-start;
+}
+
+.log-col {
   display: flex;
   flex-direction: column;
 }
-.scrollarea {
+
+.time-col {
+  flex: 0 0 120px;
+  align-items: center;
+}
+
+.log-date {
+  font-size: 12px;
+  color: var(--text-color, #C9D1D9);
+  margin-bottom: 2px;
+}
+
+.log-time {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.operator-col {
+  flex: 0 0 100px;
+  align-items: center;
+}
+
+.operator-name {
+  font-size: 13px;
+  color: var(--text-color, #C9D1D9);
+  margin-bottom: 2px;
+}
+
+.operator-id {
+  font-size: 10px;
+  opacity: 0.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 90px;
+}
+
+.content-col {
   flex: 1;
-  overflow-y: hidden;
+  padding-left: 8px;
 }
-.log-item {
-  margin-top: 20rpx;
+
+.log-action {
+  font-size: 13px;
+  color: #79C0FF;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.log-detail {
+  font-size: 12px;
+  color: var(--text-color, #C9D1D9);
+  opacity: 0.8;
+  line-height: 1.4;
+  word-break: break-all;
+}
+
+.loading-section, .no-more-section, .empty-section {
   text-align: center;
+  padding: 20px;
 }
-.log-item:last-child {
-  padding-bottom: env(safe-area-inset-bottom);
+
+.loading-text, .no-more-text, .empty-text {
+  font-size: 14px;
+  opacity: 0.6;
+}
+
+.empty-section {
+  padding: 60px 20px;
+}
+
+.empty-text {
+  font-size: 16px;
+}
+
+/* 浅色主题 */
+.light-theme .logs-container {
+  background: #FFFFFF;
+  color: #202124;
+}
+
+.light-theme .logs-header {
+  background: #FFFFFF;
+  border-bottom-color: rgba(0, 0, 0, 0.1);
+}
+
+.light-theme .log-item {
+  border-bottom-color: rgba(0, 0, 0, 0.05);
+}
+
+.light-theme .log-action {
+  color: #1976D2;
 }

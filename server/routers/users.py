@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+import json
 from ..utils.security import get_open_id
 from ..db import get_conn
 
@@ -43,7 +44,11 @@ def recharge(user_id: int, body: RechargeReq, open_id: str = Depends(get_open_id
         )
         con.execute(
             "INSERT INTO logs(user_id, actor_id, action, detail_json) VALUES (?,?,?,?)",
-            [user_id, None, "recharge", "{}"],
+            [user_id, None, "recharge", json.dumps({
+                "amount_cents": body.amount_cents,
+                "remark": body.remark,
+                "operation": "manual_recharge"
+            })],
         )
         con.execute("COMMIT")
     except Exception as e:
