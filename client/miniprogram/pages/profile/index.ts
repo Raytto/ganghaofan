@@ -1,6 +1,7 @@
 Page({
     data: {
-        darkMode: true
+        darkMode: true,
+        themeClass: ''
     },
     onShow() {
         const tab = (this as any).getTabBar && (this as any).getTabBar()
@@ -11,17 +12,23 @@ Page({
         // 加载当前主题状态
         const app = getApp<IAppOption>()
         if (app && app.globalData) {
-            this.setData({ darkMode: !!app.globalData.darkMode })
+            const darkMode = !!app.globalData.darkMode
+            this.setData({ 
+                darkMode: darkMode,
+                themeClass: darkMode ? '' : 'light-theme'
+            })
         }
     },
     onToggleDarkMode(e: WechatMiniprogram.SwitchChange) {
         const checked = !!(e && (e.detail as any).value)
         const app = getApp<IAppOption>()
-        if (app && app.globalData) {
-            app.globalData.darkMode = checked
-            wx.setStorageSync('dark_mode', checked)
+        if (app && app.switchTheme) {
+            app.switchTheme(checked)
         }
-        this.setData({ darkMode: checked })
+        this.setData({ 
+            darkMode: checked,
+            themeClass: checked ? '' : 'light-theme'
+        })
         // 反馈
         wx.showToast({ title: checked ? '深色模式已开启' : '浅色模式已开启', icon: 'none' })
     }

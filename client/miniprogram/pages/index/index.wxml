@@ -1,5 +1,6 @@
 <!--index.wxml-->
-<navigation-bar title="罡好饭" back="{{false}}" color="#C9D1D9" background="#1B1B1B"></navigation-bar>
+<view class="{{themeClass}}">
+<navigation-bar title="罡好饭" back="{{false}}" color="{{darkMode ? '#C9D1D9' : '#202124'}}" background="{{darkMode ? '#1B1B1B' : '#FFFFFF'}}"></navigation-bar>
 <view class="header">
   <view class="header-bottom">
     <view class="hb-left">
@@ -110,3 +111,4 @@
   bind:update="onOrderUpdate"
   bind:cancelorder="onOrderCancel"
 />
+</view>

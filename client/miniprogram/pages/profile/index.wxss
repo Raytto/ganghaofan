@@ -1,4 +1,4 @@
-.page { min-height: 100vh; background: #1B1B1B; color: #C9D1D9; padding-bottom: 50px; }
+.page { min-height: 100vh; padding-bottom: 50px; }
 .section { padding: 16px; }
 
 .setting-item {
@@ -6,12 +6,19 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  border-bottom: 1px solid;
+}
+
+.setting-item {
+  border-bottom-color: rgba(255,255,255,0.08);
+}
+
+.light-theme .setting-item {
+  border-bottom-color: rgba(0,0,0,0.08);
 }
 
 .setting-label {
   font-size: 16px;
-  color: #C9D1D9;
 }
 
 .setting-switch {

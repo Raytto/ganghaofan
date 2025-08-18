@@ -9,4 +9,5 @@ interface IAppOption {
     darkMode?: boolean,
   }
   userInfoReadyCallback?: WechatMiniprogram.GetUserInfoSuccessCallback,
+  switchTheme?: (darkMode: boolean) => void,
 }

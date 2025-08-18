@@ -34,4 +34,19 @@ App<IAppOption>({
       console.error('login failed', err)
     })
   },
+  // 主题切换方法
+  switchTheme(darkMode: boolean) {
+    this.globalData.darkMode = darkMode
+    wx.setStorageSync('dark_mode', darkMode)
+    // 通知所有页面更新主题
+    const pages = getCurrentPages()
+    pages.forEach(page => {
+      if (page.setData) {
+        page.setData({ 
+          themeClass: darkMode ? '' : 'light-theme',
+          darkMode: darkMode 
+        })
+      }
+    })
+  }
 })
