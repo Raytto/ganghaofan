@@ -1,7 +1,9 @@
-<view class="tab-bar">
-  <block wx:for="{{list}}" wx:key="pagePath" wx:for-index="idx">
-    <view class="tab-item {{idx === selected ? 'active' : ''}}" data-index="{{idx}}" bindtap="switchTab">
-      <text class="text">{{item.text}}</text>
-    </view>
-  </block>
+<view class="{{themeClass}}">
+  <view class="tab-bar theme-container-bg">
+    <block wx:for="{{list}}" wx:key="pagePath" wx:for-index="idx">
+      <view class="tab-item {{idx === selected ? 'active' : ''}}" data-index="{{idx}}" bindtap="switchTab">
+        <text class="text {{idx === selected ? 'theme-text' : 'theme-text-tertiary'}}">{{item.text}}</text>
+      </view>
+    </block>
+  </view>
 </view>

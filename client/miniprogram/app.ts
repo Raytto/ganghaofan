@@ -47,6 +47,14 @@ App<IAppOption>({
           darkMode: darkMode 
         })
       }
+      // 更新自定义tab bar主题
+      const tabbar = (page as any).getTabBar && (page as any).getTabBar()
+      if (tabbar && tabbar.setData) {
+        tabbar.setData({
+          themeClass: darkMode ? '' : 'light-theme',
+          darkMode: darkMode
+        })
+      }
     })
   }
 })
