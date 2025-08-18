@@ -160,6 +160,12 @@ def update_order(
     if not ord_row:
         raise HTTPException(404, "order not found")
     uid, meal_id, st = ord_row
+    
+    # Verify that the user requesting modification owns this order
+    requesting_user_row = con.execute("SELECT id FROM users WHERE open_id=?", [open_id]).fetchone()
+    if not requesting_user_row or requesting_user_row[0] != uid:
+        raise HTTPException(403, "cannot modify other user's order")
+    
     mrow = con.execute("SELECT status FROM meals WHERE meal_id=?", [meal_id]).fetchone()
     if not mrow or mrow[0] != "published":
         raise HTTPException(400, "meal not open for modification")
@@ -214,6 +220,12 @@ def delete_order(order_id: int, open_id: str = Depends(get_open_id)):
     if not row:
         raise HTTPException(404, "order not active or not found")
     uid, meal_id, amount, ojson = row
+    
+    # Verify that the user requesting cancellation owns this order
+    requesting_user_row = con.execute("SELECT id FROM users WHERE open_id=?", [open_id]).fetchone()
+    if not requesting_user_row or requesting_user_row[0] != uid:
+        raise HTTPException(403, "cannot cancel other user's order")
+    
     st = con.execute("SELECT status FROM meals WHERE meal_id=?", [meal_id]).fetchone()
     if not st or st[0] != "published":
         raise HTTPException(400, "cannot cancel after lock")
