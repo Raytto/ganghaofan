@@ -675,7 +675,8 @@ Component({
           total_cents: total,
           balance_cents,
           action,
-          readonlyMsg
+          readonlyMsg,
+          my_order_id: d.my_order_id
         }
       })
     },
@@ -716,8 +717,12 @@ Component({
       try {
         const d = this.data.orderDetail || {}
         await this.ensureLogin()
-        // Assume backend supports DELETE /orders?meal_id=xx to cancel current user's order
-        await api.request(`/orders?meal_id=${d.meal_id}`, { method: 'DELETE' })
+        // Use the order_id from meal detail to cancel the specific order
+        if (!d.my_order_id) {
+          wx.showToast({ title: '未找到订单', icon: 'none' })
+          return
+        }
+        await api.request(`/orders/${d.my_order_id}`, { method: 'DELETE' })
         wx.showToast({ title: '已取消', icon: 'success' })
         this.closeOrderDialog()
       } catch (e: any) {

@@ -254,12 +254,15 @@ def get_meal(meal_id: int, open_id: str = Depends(get_open_id)):
     urow = con.execute("SELECT id FROM users WHERE open_id=?", [open_id]).fetchone()
     uid = urow[0] if urow else None
     my_ordered = False
+    my_order_id = None
     if uid:
         row = con.execute(
-            "SELECT 1 FROM orders WHERE user_id=? AND meal_id=? AND status='active' LIMIT 1",
+            "SELECT order_id FROM orders WHERE user_id=? AND meal_id=? AND status='active' LIMIT 1",
             [uid, meal_id],
         ).fetchone()
-        my_ordered = bool(row)
+        if row:
+            my_ordered = True
+            my_order_id = row[0]
 
     return {
         "meal_id": r[0],
@@ -274,6 +277,7 @@ def get_meal(meal_id: int, open_id: str = Depends(get_open_id)):
         "status": r[9],
         "ordered_qty": r[10],
         "my_ordered": my_ordered,
+        "my_order_id": my_order_id,
     }
 
 
