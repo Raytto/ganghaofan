@@ -5,11 +5,20 @@ Component({
             { pagePath: '/pages/admin/index', text: '管理' },
             { pagePath: '/pages/index/index', text: '点餐' },
             { pagePath: '/pages/profile/index', text: '我的' }
-        ] as Array<{ pagePath: string; text: string }>
+        ] as Array<{ pagePath: string; text: string }>,
+        themeClass: '',
+        darkMode: true,
     },
     lifetimes: {
         attached(this: any) {
             this.updateSelected()
+            // 初始化主题
+            const app = getApp<IAppOption>()
+            const darkMode = app?.globalData?.darkMode !== false
+            this.setData({
+                darkMode: darkMode,
+                themeClass: darkMode ? '' : 'light-theme'
+            })
         }
     },
     methods: {

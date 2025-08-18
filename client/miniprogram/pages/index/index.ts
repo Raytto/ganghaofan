@@ -77,17 +77,28 @@ Component({
       capacity: 50,
       options: [] as { id: string; name: string; price: number }[],
     },
+    
+    // 主题相关
+    themeClass: '',
+    darkMode: true,
   },
   
   lifetimes: {
     attached() {
       const m = this.data.month
+      
+      // 初始化主题
+      const app = getApp<IAppOption>()
+      const darkMode = app?.globalData?.darkMode !== false
+      
       this.setData({
         monthLabel: m.replace('-', '年') + '月',
         yearLabel: m.split('-')[0] + '年',
         monthOnlyLabel: m.split('-')[1].replace(/^0/, '') + '月',
         fullLabel: m.replace('-', '年') + '月',
-        todayCnLabel: this.formatCnDate(new Date())
+        todayCnLabel: this.formatCnDate(new Date()),
+        themeClass: darkMode ? '' : 'light-theme',
+        darkMode: darkMode
       })
         // init caches
         ; (this as any)._byKey = new Map<string, any>()

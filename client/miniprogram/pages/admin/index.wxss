@@ -1,2 +1,14 @@
-.page { min-height: 100vh; background: #1B1B1B; color: #C9D1D9; padding-bottom: 50px; }
+.page { min-height: 100vh; padding-bottom: 50px; }
 .section { padding: 16px; }
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+}
+
+.hint {
+  font-size: 12px;
+  padding: 8px 0;
+}

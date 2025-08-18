@@ -6,6 +6,8 @@ interface IAppOption {
     debugMode?: boolean,
     isAdmin?: boolean,
     adminViewEnabled?: boolean,
+    darkMode?: boolean,
   }
   userInfoReadyCallback?: WechatMiniprogram.GetUserInfoSuccessCallback,
+  switchTheme?: (darkMode: boolean) => void,
 }

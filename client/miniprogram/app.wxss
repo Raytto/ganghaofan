@@ -1,6 +1,15 @@
 /**app.wxss**/
+/* 深色模式样式（默认） */
 .page, page { background: #1B1B1B; min-height: 100vh; color: #C9D1D9; }
 text, view { color: #C9D1D9; }
+
+/* 浅色模式样式 */
+.light-theme .page, 
+.light-theme page { background: #FFFFFF; color: #202124; }
+.light-theme text, 
+.light-theme view { color: #202124; }
+
+/* 通用容器样式 */
 .container {
   height: 100%;
   display: flex;
@@ -9,4 +18,19 @@ text, view { color: #C9D1D9; }
   justify-content: space-between;
   padding: 200rpx 0;
   box-sizing: border-box;
-} 
+}
+
+/* 主题相关的工具类 */
+.theme-bg { background: #1B1B1B; }
+.theme-container-bg { background: #131314; }
+.theme-text { color: #C9D1D9; }
+.theme-text-secondary { color: #C4C7C5; }
+.theme-text-tertiary { color: #8B949E; }
+.theme-border { border-color: rgba(255,255,255,0.08); }
+
+.light-theme .theme-bg { background: #FFFFFF; }
+.light-theme .theme-container-bg { background: #F8F9FA; }
+.light-theme .theme-text { color: #202124; }
+.light-theme .theme-text-secondary { color: #5F6368; }
+.light-theme .theme-text-tertiary { color: #9AA0A6; }
+.light-theme .theme-border { border-color: rgba(0,0,0,0.08); }

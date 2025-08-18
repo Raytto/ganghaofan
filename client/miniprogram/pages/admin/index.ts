@@ -2,6 +2,8 @@ Page({
     data: {
         adminViewEnabled: false,
         canAdmin: false,
+        themeClass: '',
+        darkMode: true,
     },
     onShow() {
         // tab selected state
@@ -12,9 +14,12 @@ Page({
         // permission check and load toggle
         const app = getApp<IAppOption>()
         const canAdmin = !!(app.globalData && (app.globalData.debugMode || app.globalData.isAdmin))
+        const darkMode = app?.globalData?.darkMode !== false
         this.setData({
             canAdmin,
-            adminViewEnabled: !!(app.globalData && app.globalData.adminViewEnabled)
+            adminViewEnabled: !!(app.globalData && app.globalData.adminViewEnabled),
+            darkMode: darkMode,
+            themeClass: darkMode ? '' : 'light-theme'
         })
         if (!canAdmin) {
             wx.showToast({ title: '没有管理权限', icon: 'none' })
