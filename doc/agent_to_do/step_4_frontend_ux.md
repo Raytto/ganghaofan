@@ -1,7 +1,7 @@
 # Step 4 · 前端信息架构与交互（小程序 Skyline）
 
 ## 页面与路由
-- pages/index/index：主日历页
+- pages/calender/index：主日历页
 - pages/logs/logs：个人日志
 - pages/center/center：个人中心（余额、充值入口/提示）
 - pages/meal/publish：管理员发布/编辑餐次

@@ -19,22 +19,27 @@ client/
     custom-tab-bar/    # 自定义底部栏（index.js 为必需）
     components/
       navigation-bar/   # 自定义导航条（暗色默认）
-      publish-dialog/   # 发布/编辑餐次弹窗（组件化）
+      publish-dialog/   # 发布/编辑/锁定/取消锁定/撤单弹窗（组件化）
       order-dialog/     # 下单/修改/查看弹窗（组件化）
+      slot-card/        # 日历格子（午/晚三行展示）
     pages/
-      index/           # 首页（日历）
+  calender/        # 首页（日历）
       order/           # 下单页（根据 meal_id 下单）
       admin/           # 管理页（管理员可见）
       profile/         # 个人中心（所有用户）
-      logs/            # 日志页（占位）
+      logs/            # 日志页（与我相关/系统日志）
     utils/
-      api.ts           # 网络封装、登录与日历 API（含按 open_id 作用域的 DB Key 存取）
+      api.ts           # 网络封装、登录与日历/订单/日志 API（含按 open_id 作用域的 DB Key 存取）
       passphrase.ts    # 口令设置弹窗的共用助手（confirm-only + 失败自动重试）
+      date.ts          # 日期工具
+      slotView.ts      # 日历三行视图计算
+      theme.ts         # 主题状态与工具
   typings/             # TS 类型声明
 server/                # FastAPI 服务（日历、餐次、鉴权等）
   config/
-    passphrases.json   # 口令 → 数据库 Key 映射（白名单）
+    passphrases.json   # 口令 → Key 映射（白名单，仅用于校验放行）
     dev_mock.json      # 开发期 mock 登录配置（可选）
+    db.json            # 单库路径配置（{"db_path": "server/data/ganghaofan.duckdb"}）
 ```
 
 ## 全局主题与样式
@@ -56,21 +61,22 @@ server/                # FastAPI 服务（日历、餐次、鉴权等）
   - `loginAndGetToken()`：登录并缓存 token。
   - `getCalendar(month)`：获取单月日历。
   - `getCalendarBatch(months: string[])`：批量获取多月（首页一次取前/当前/后 3 个月窗口）。
-  - 多数据库路由：前端在请求头携带 `X-DB-Key`，由服务器基于该 Key 选择 DuckDB 文件。
+  - 口令验证：业务接口会自动携带 `X-DB-Key`，后端仅校验是否在白名单，不再据此切换数据库（后端为单库）。
   - DB Key 按用户作用域：小程序端以 `open_id` 为粒度在本地存储 `db_key_map`，不同用户互不干扰；登录成功（设置新 token）时会清空缓存的 `current_open_id`，并通过 `/users/me` 拉取与持久化当前 `open_id`。
   - 口令解析：前端调用 `POST /env/resolve { passphrase }` 换取 `key`，失败返回 400 并提示“口令没对上”。
 
-## 多数据库与口令（2025-08）
-- 白名单映射：`server/config/passphrases.json` 定义“口令 → DB Key”的映射。后端严格校验，未配置的口令一律 400 “口令没对上”。
+## 单数据库与口令验证（2025-08 更新）
+- 单库配置：后端统一使用一个 DuckDB 文件，路径由 `server/config/db.json` 的 `db_path` 指定；缺省为 `server/data/ganghaofan.duckdb`。
+- 口令白名单：`server/config/passphrases.json` 定义“口令 → Key”的映射；业务路由依赖校验 `X-DB-Key` 是否在白名单；当白名单为空时不强制校验（便于开发）。
 - 共用弹窗：新增 `utils/passphrase.ts` 暴露 `promptPassphrase()`，统一弹窗样式与交互：
   - 仅一个“确定”按钮（不显示“取消”）。
   - 为空或无效口令时，toast 提示并自动再次弹出，直至输入合法。
   - 成功后持久化 DB Key 并提示“已设置口令”。
 - 首次提示策略：
-  - 首页（index）：页面挂载时若无 DB Key，先弹口令，不加载数据；设置成功后重置日历缓存并基于新库预加载 3 个月窗口。
+  - 首页（calender）：页面挂载时若无 DB Key，先弹口令，不加载数据；设置成功后重置日历缓存并基于新库预加载 3 个月窗口。
   - 个人中心（profile）：进入页面若无 DB Key，同样弹出口令；设置成功后更新页面展示。
-- 请求路由：所有 API 调用自动携带当前用户作用域下的 `X-DB-Key`。
-- 服务端启动：读取映射，启动阶段主动初始化默认库与所有已配置 DB（不存在则创建并建表）。
+- 请求路由：所有 API 调用自动携带当前用户作用域下的 `X-DB-Key`（仅用于校验，不切库）。
+- 服务端启动：初始化单库（若文件不存在则创建并建表）。
 - 开发 Mock：
   - `server/config/dev_mock.json` 或环境变量开启 mock 登录（固定/或每次唯一的 open_id，字段：`mock_enabled`、`open_id`、`nickname`、`unique_per_login`）。
   - `GET /env/mock` 返回当前 mock 配置，前端“个人中心”可据此补齐昵称展示。
@@ -78,7 +84,7 @@ server/                # FastAPI 服务（日历、餐次、鉴权等）
 
 ## 页面一览
 
-### 1) 首页：`pages/index`
+### 1) 首页：`pages/calender`
 - 作用：展示按“工作日（周一至周五）”排列的周视图；以“周”为单位滚动，预加载 9 周（上 3 周/当前 3 周/下 3 周），吸附翻页一次滑动 3 周；点击某一时段进入下单或打开发布弹窗（管理员）。
 - 文件：
   - `index.wxml`：
@@ -121,7 +127,7 @@ server/                # FastAPI 服务（日历、餐次、鉴权等）
 - 实现：通过全局状态管理主题切换，影响整个应用的配色方案。
 
 ### 4) 日志页：`pages/logs`
-- 用于调试或展示历史（当前为占位）。
+- 展示与当前用户相关的操作日志（既包括“我作为主体”的日志，也包括“我作为操作者”的日志），进入页面立即显示原生“加载中…”，支持向下分页；管理员可切换查看系统日志（`GET /logs/all`）。
 
 ## 组件：`components`
 
@@ -141,8 +147,8 @@ server/                # FastAPI 服务（日历、餐次、鉴权等）
   - `show` 是否可见；`mode` `'create'|'edit'`；`form` 当前表单数据；`original` 原餐次详情；`readonly` 是否只读；`needsRepost` 是否危险修改。
 - 事件：
   - `close` 关闭；`input`/`number`/`adjust` 表单变更；`addoption`/`removeoption`/`optioninput`/`adjustoption` 选项变更；
-  - `submit` 提交；`cancelmeal` 撤单；`lockmeal` 锁定。
-- 使用：在 `pages/index` 绑定到对应的页面方法（页面仍负责实际业务与 API 调用）。
+  - `submit` 提交；`cancelmeal` 撤单；`lockmeal` 锁定；`unlockmeal` 取消锁定。
+- 使用：在 `pages/calender` 绑定到对应的页面方法（页面仍负责实际业务与 API 调用）。
 
 ### order-dialog
 ### 口令设置弹窗（共用）
@@ -160,10 +166,11 @@ server/                # FastAPI 服务（日历、餐次、鉴权等）
 - 位置与实现：`miniprogram/custom-tab-bar/`（注意：必须存在 `index.js`，小程序不识别 TS 版本）。
 - 配置：`app.json` 中开启 `{"tabBar": { "custom": true, ... }}`，并在 `list` 中配置页面。
 - 角色控制：
-  - 读取 `wx.getStorageSync('user_role')` 判断是否为 `'admin'`；
-  - 管理员显示“管理、个人中心”两栏；普通用户仅显示“个人中心”。
-- 相关页面：
+  - Tab 列表包含“管理 / 点餐 / 我的”；
+  - 切换到“管理”时进行权限校验，非管理员仅提示“没有管理权限”。
+- 相关页面与路由：
   - `pages/admin/index`（管理页，占位）；
+  - `pages/calender/index`（点餐首页，日历）；
   - `pages/profile/index`（个人中心，占位）。
 
 ## 后端能力（摘要）
@@ -176,13 +183,17 @@ server/                # FastAPI 服务（日历、餐次、鉴权等）
   - `POST /env/resolve`：解析口令为 DB Key（严格白名单，失败 400）。
   - `GET /env/mock`：返回开发期 mock 配置（是否开启、昵称、open_id 策略等）。
   - `POST /meals`（管理员）：创建餐次。请求体：`{ date, slot, title?, description?, base_price_cents, options:[{id,name,price_cents}], capacity }`（单人限购移除，后端下单逻辑限制每人每餐仅 1 单）。
-  - `PUT /meals/{meal_id}`（管理员）：在 `status='published'` 下直接修改餐次（不影响已订订单）。
+  - `PUT /meals/{meal_id}` 或 `PATCH /meals/{meal_id}`（管理员）：在 `status='published'` 下直接修改餐次（不影响已订订单）。
   - `POST /meals/{meal_id}/repost`（管理员）：危险修改路径，更新餐次字段并取消/退款当前餐次下所有“已订”订单；保持同一 `meal_id`。
   - `POST /meals/{meal_id}/lock`（管理员）：锁定本餐，冻结修改与用户下单；
+  - `POST /meals/{meal_id}/unlock`（管理员）：取消锁定，恢复为已发布；
   - `POST /meals/{meal_id}/complete`（管理员）：将已锁定餐次标记为完成；
   - `POST /meals/{meal_id}/cancel`（管理员）：撤单并退款所有活跃订单，餐次状态变为 canceled。
+  - 订单：`POST /orders` 创建；`PATCH /orders/{order_id}` 修改（等价“撤旧+新建”）；`DELETE /orders/{order_id}` 撤单。
+  - 日志：`GET /logs/my` 我相关日志；`GET /logs/all` 系统日志（分页）。
 - 业务规则（当前/计划）：
-  - 下单即扣款；取消退回余额；修改=取消+重下；允许小额负数；管理员白名单（端上可通过开关控制）。
+  - 下单即扣款；取消退回余额；修改=取消+重下；管理员白名单（端上可通过开关控制）。
+  - 日志包含操作者(actor)与结构化详情(detail_json)；下单/撤单日志记录余额 before/after；管理员取消餐次会为每位已订用户生成一条 order_cancel 日志（actor=管理员）。
 
 ## 弹窗风格标准（基于“发布罡好饭”）
 
@@ -227,7 +238,7 @@ server/                # FastAPI 服务（日历、餐次、鉴权等）
 - 布局：使用 Flex，避免 CSS Grid 与不支持的属性；
 - 滚动：日历区域独立捕获 `touch`，防止整页滚动；
 - 时间：统一 `YYYY-MM` / `YYYY-MM-DD`；周起始为周一；
-- 多库：所有请求附带 `X-DB-Key`；DB Key 存储按 `open_id` 作用域隔离，切换用户不会串库。
+- 口令校验：所有请求附带 `X-DB-Key`；DB Key 存储按 `open_id` 作用域隔离，切换用户不会串库；后端为单库，仅校验白名单。
 - 颜色：
   - 页面背景 `#1B1B1B`；标题栏 `#1B1B1B`；日历格 `#131314`；
   - 主文字 `#C9D1D9`，次级 `#8b949e`；
@@ -254,7 +265,7 @@ server/                # FastAPI 服务（日历、餐次、鉴权等）
 - 调整日历：
   - 仅工作日：由 `buildGrid` 控制；
   - 行高与可视高度：`measureViewportAndCenter` -> `blockH`；
-  - 滑动阈值：`onCalTouchEnd` 中按 `blockH * 0.3` 计算。
+  - 滑动阈值：`onCalTouchEnd` 使用“约 18% 的视口高度”，并限制最小 72px、最大 220px。
 
 ## 调试与排错小贴士
 - 服务未启动时，首页会显示“加载失败”；先启动后端再进入；
@@ -325,8 +336,8 @@ server/                # FastAPI 服务（日历、餐次、鉴权等）
 - 并发提示：若下单过程中餐被锁定，提交时提示“订单状态已改变，请刷新”，并关闭弹窗。
 
 ### 后端事务性
-- 订单相关操作（下单/修改/撤单/管理员撤销重发）需用单事务包裹“订单变更 + 余额变更 + 已订数量变更”。
-- 管理修改需区分直接修改与取消重发；后者需要退款所有已订用户，原餐次置 canceled，新建餐次。
+- 订单相关操作（下单/修改/撤单/管理员撤销重发）需用单事务包裹“订单变更 + 余额变更”。
+- 管理修改需区分直接修改与取消重发；危险修改会取消并退款所有已订用户，保持相同 `meal_id`。
 
 ## 代码注释规范
 - 详见 doc/comment_std.md

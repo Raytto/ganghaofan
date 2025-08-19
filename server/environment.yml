@@ -7,6 +7,8 @@ dependencies:
   - fastapi=0.112.0
   - uvicorn=0.30.3
   - pydantic=2.8.2
+  - pytest
+  - requests
   - pip
   - pip:
       - duckdb==1.1.0

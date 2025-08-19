@@ -17,6 +17,7 @@
 const BASE_URL = 'http://127.0.0.1:8000/api/v1';
 const TOKEN_KEY = 'auth_token';
 const DB_KEY_MAP_KEY = 'db_key_map'; // { [open_id]: key }
+const DB_KEY_GLOBAL_KEY = 'db_key_global'; // 临时全局 Key（未拿到 open_id 之前使用）
 const CURRENT_OPEN_ID_KEY = 'current_open_id';
 
 export function getToken(): string | null {
@@ -41,7 +42,19 @@ async function ensureCurrentOpenId(): Promise<string | null> {
     try {
         const u: any = await request('/users/me', { method: 'GET' });
         oid = (u && u.open_id) ? String(u.open_id) : null;
-        if (oid) wx.setStorageSync(CURRENT_OPEN_ID_KEY, oid);
+        if (oid) {
+            wx.setStorageSync(CURRENT_OPEN_ID_KEY, oid);
+            // 如果存在临时全局 DB Key，则在拿到 open_id 后迁移到按用户作用域存储
+            try {
+                const gk = wx.getStorageSync(DB_KEY_GLOBAL_KEY) as string | undefined;
+                if (gk && typeof gk === 'string' && gk.trim()) {
+                    const map = (wx.getStorageSync(DB_KEY_MAP_KEY) || {}) as Record<string, string>;
+                    map[oid] = gk;
+                    wx.setStorageSync(DB_KEY_MAP_KEY, map);
+                    try { wx.removeStorageSync(DB_KEY_GLOBAL_KEY); } catch { }
+                }
+            } catch { }
+        }
         return oid;
     } catch {
         return null;
@@ -53,8 +66,9 @@ export function getDbKey(): string | null {
         const map = (wx.getStorageSync(DB_KEY_MAP_KEY) || {}) as Record<string, string>;
         const oid = getCurrentOpenId();
         if (oid && map && typeof map === 'object' && map[oid]) return map[oid];
-        // no user-scoped key yet
-        return null;
+        // 若尚未拿到 open_id 或未设置用户作用域 key，则回退使用全局临时 Key
+        const gk = wx.getStorageSync(DB_KEY_GLOBAL_KEY) as string | undefined;
+        return (gk && typeof gk === 'string' && gk.trim()) ? gk : null;
     } catch { return null; }
 }
 
@@ -69,8 +83,11 @@ export function setDbKey(k: string | null) {
                 if (oid in map) delete map[oid];
             }
             wx.setStorageSync(DB_KEY_MAP_KEY, map);
+        } else {
+            // 在 open_id 未知时，先保存到全局临时 Key，保证受保护接口（/users/me 等）可携带 X-DB-Key
+            if (k && k.trim()) wx.setStorageSync(DB_KEY_GLOBAL_KEY, k);
+            else try { wx.removeStorageSync(DB_KEY_GLOBAL_KEY) } catch { }
         }
-        // do not update legacy global key to avoid bleeding across users
     } catch { }
 }
 
@@ -82,6 +99,54 @@ async function request<T = any>(
     path: string,
     options: Partial<WechatMiniprogram.RequestOption<any>> = {}
 ): Promise<T> {
+    // 直接调用的口令解析（避免在403处理时通过request造成递归）
+    const resolvePassphraseRaw = (passphrase: string): Promise<{ key: string }> => {
+        const url = `${BASE_URL}/env/resolve`;
+        const headers: Record<string, string> = {};
+        const token = getToken();
+        if (token) headers['Authorization'] = `Bearer ${token}`;
+        return new Promise((resolve, reject) => {
+            wx.request({
+                method: 'POST',
+                url,
+                data: { passphrase },
+                header: headers,
+                success: (res) => {
+                    const sc = res.statusCode || 0;
+                    if (sc >= 200 && sc < 300) resolve(res.data as any);
+                    else reject(res.data || { code: sc, message: 'HTTP Error' });
+                },
+                fail: (e) => reject(e),
+            });
+        });
+    };
+
+    const promptPassphraseInline = (): Promise<string | null> => {
+        return new Promise((resolve) => {
+            wx.showModal({
+                title: '对口令',
+                editable: true,
+                placeholderText: '输入口令',
+                showCancel: false,
+                confirmText: '确定',
+                success: async (res) => {
+                    if (!res.confirm) { resolve(null); return; }
+                    const val = (res.content || '').trim();
+                    if (!val) { wx.showToast({ title: '请输入口令', icon: 'none' }); promptPassphraseInline().then(resolve); return; }
+                    try {
+                        const { key } = await resolvePassphraseRaw(val);
+                        setDbKey(key || null);
+                        wx.showToast({ title: '已设置口令', icon: 'success' });
+                        resolve(key || null);
+                    } catch {
+                        wx.showToast({ title: '口令没对上', icon: 'none' });
+                        promptPassphraseInline().then(resolve);
+                    }
+                },
+            });
+        });
+    };
+
     const doOnce = (): Promise<T> => {
         const url = path.startsWith('http') ? path : `${BASE_URL}${path}`;
         const headers: Record<string, string> = options.header ? { ...(options.header as any) } : {};
@@ -119,6 +184,14 @@ async function request<T = any>(
         if (e && (e.code === 401 || e.code === '401')) {
             try { await loginAndGetToken() } catch { /* ignore login failure */ }
             return await doOnce()
+        }
+        // 403错误时提示输入口令并重试一次（跳过对/env/resolve本身的处理以防递归）
+        if (e && (e.code === 403 || e.code === '403')) {
+            const p = (path || '').toLowerCase();
+            if (!p.includes('/env/resolve')) {
+                const key = await promptPassphraseInline();
+                if (key) return await doOnce();
+            }
         }
         throw e
     }

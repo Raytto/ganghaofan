@@ -1,0 +1,8 @@
+{
+    "usingComponents": {
+        "navigation-bar": "/components/navigation-bar/navigation-bar",
+        "publish-dialog": "/components/publish-dialog/publish-dialog",
+        "order-dialog": "/components/order-dialog/order-dialog",
+        "slot-card": "/components/slot-card/slot-card"
+    }
+}

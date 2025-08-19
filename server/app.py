@@ -32,7 +32,8 @@ def _on_startup():
 
 
 # 注册路由模块，统一使用 /api/v1 前缀
-app.include_router(auth.router, prefix="/api/v1", dependencies=[Depends(use_db_key)])
+# 登录不强制口令
+app.include_router(auth.router, prefix="/api/v1")
 app.include_router(users.router, prefix="/api/v1", dependencies=[Depends(use_db_key)])
 app.include_router(meals.router, prefix="/api/v1", dependencies=[Depends(use_db_key)])
 app.include_router(orders.router, prefix="/api/v1", dependencies=[Depends(use_db_key)])

@@ -3,7 +3,7 @@ Component({
         selected: 0,
         list: [
             { pagePath: '/pages/admin/index', text: '管理' },
-            { pagePath: '/pages/index/index', text: '点餐' },
+            { pagePath: '/pages/calender/index', text: '点餐' },
             { pagePath: '/pages/profile/index', text: '我的' }
         ] as Array<{ pagePath: string; text: string }>,
         themeClass: '',
@@ -45,7 +45,7 @@ Component({
         selected: 0,
         list: [
             { pagePath: '/pages/admin/index', text: '管理' },
-            { pagePath: '/pages/index/index', text: '点餐' },
+            { pagePath: '/pages/calender/index', text: '点餐' },
             { pagePath: '/pages/profile/index', text: '我的' }
         ]
     },

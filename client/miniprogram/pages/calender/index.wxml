@@ -1,0 +1,119 @@
+<!--index.wxml-->
+<view class="{{themeClass}}">
+<navigation-bar title="缄好饭" back="{{false}}" color="{{darkMode ? '#C9D1D9' : '#202124'}}" background="{{darkMode ? '#1B1B1B' : '#FFFFFF'}}"></navigation-bar>
+<view class="header">
+  <view class="header-bottom">
+    <view class="hb-left">
+      <block wx:if="{{canAdmin}}">
+        <view class="hb-left-grid">
+          <view class="hb-cell left">
+            <button class="view-toggle" bindtap="onToggleAdminView">{{adminView ? '管' : '用'}}</button>
+          </view>
+          <view class="hb-cell right">
+            <button class="today-sm" bindtap="onToday">{{todayCnLabel}}</button>
+          </view>
+        </view>
+      </block>
+      <block wx:else>
+        <button class="today-sm" bindtap="onToday">{{todayCnLabel}}</button>
+      </block>
+    </view>
+    <view class="hb-right">
+      <text class="slogan">和缄子哥一起健康每一天</text>
+    </view>
+  </view>
+</view>
+
+<view class="scrollarea">
+  <view wx:if="{{tip}}" class="error">{{tip}}</view>
+  <view class="calendar">
+    <block wx:if="{{loading}}">
+      <view class="loading-overlay">加载中...</view>
+    </block>
+    <view class="week-header">
+      <text class="w-wknd"></text>
+      <text class="w-wk">星期一</text>
+      <text class="w-wk">星期二</text>
+      <text class="w-wk">星期三</text>
+      <text class="w-wk">星期四</text>
+      <text class="w-wk">星期五</text>
+      <text class="w-wknd"></text>
+    </view>
+  <view class="cal-viewport" bindtouchstart="onCalTouchStart" catchtouchmove="onCalTouchMove" bindtouchend="onCalTouchEnd" style="{{blockH > 0 ? ('height:' + blockH + 'px;') : ''}}">
+    <view class="cal-track {{trackAnimate ? 'animate' : ''}}" style="transform: translateY({{trackBase + trackY}}px); height: {{trackHeight > 0 ? trackHeight + 'px' : '720px'}};">
+      <block wx:for="{{weeks9}}" wx:key="idx" wx:for-index="idx" wx:for-item="weekArr">
+        <view class="week-row">
+          <block wx:for="{{weekArr}}" wx:key="dateKey" wx:for-item="item">
+            <view class="cell {{item.isWeekend ? 'wknd' : 'wk'}}">
+              <view class="date {{item.isToday ? 'today' : ''}}">
+                <text class="date-num">{{item.dateLabel || item.day}}</text>
+              </view>
+              <block wx:if="{{!item.isWeekend}}">
+                <view class="slots">
+                  <view class="slot-wrap">
+                    <slot-card
+                      label="午餐"
+                      type="lunch"
+                      view="{{item.lunch}}"
+                      date="{{item.dateKey}}"
+                      meal-slot="lunch"
+                      bind:tapslot="onTapSlot"
+                    />
+                  </view>
+                  <view class="slot-wrap">
+                    <slot-card
+                      label="晚餐"
+                      type="dinner"
+                      view="{{item.dinner}}"
+                      date="{{item.dateKey}}"
+                      meal-slot="dinner"
+                      bind:tapslot="onTapSlot"
+                    />
+                  </view>
+                </view>
+              </block>
+            </view>
+          </block>
+        </view>
+      </block>
+    </view>
+  </view>
+  </view>
+</view>
+
+<!-- Admin Publish Dialog (component) -->
+<publish-dialog
+  show="{{showPublish}}"
+  mode="{{publishMode}}"
+  form="{{publishForm}}"
+  original="{{publishOriginal}}"
+  readonly="{{publishReadonly}}"
+  needsRepost="{{publishNeedsRepost}}"
+  submitting="{{submittingPublish}}"
+  bind:close="closePublishDialog"
+  bind:input="onPublishInput"
+  bind:number="onPublishNumberInput"
+  bind:adjust="onAdjustNumber"
+  bind:addoption="onAddOption"
+  bind:removeoption="onRemoveOption"
+  bind:optioninput="onOptionInput"
+  bind:adjustoption="onAdjustOptionPrice"
+  bind:submit="onPublishSubmit"
+  bindsubmit="onPublishSubmit"
+  bind:publish="onPublishSubmit"
+  bind:cancelmeal="onMealCancel"
+  bind:lockmeal="onMealLock"
+  bind:unlockmeal="onMealUnlock"
+/>
+
+<!-- User Order Dialog (component) -->
+<order-dialog
+  id="order-dialog"
+  show="{{showOrder}}"
+  detail="{{orderDetail}}"
+  bind:close="closeOrderDialog"
+  bind:create="onOrderCreate"
+  bind:update="onOrderUpdate"
+  bind:cancelorder="onOrderCancel"
+/>
+</view>

@@ -1,11 +1,12 @@
 """
-数据库连接和表结构管理模块
-负责DuckDB数据库的初始化、连接管理和表结构定义
+数据库连接和表结构管理模块（单库版本）
+负责 DuckDB 数据库的初始化、连接管理和表结构定义。
 
-主要功能：
-- 提供全局数据库连接实例
-- 定义完整的表结构和索引
-- 支持JSON扩展以处理动态选项数据
+简化说明：
+- 统一使用一个数据库文件，路径从 server/config/db.json 读取（键：db_path），
+    若未配置则回退到 server/data/ganghaofan.duckdb。
+- 保留 JSON 扩展与建表逻辑。
+- 不再根据口令切换数据库；改为在路由依赖中校验口令是否有效。
 
 数据库表说明：
 - users: 用户基本信息和余额
@@ -15,25 +16,19 @@
 - logs: 系统操作日志
 """
 
-import os
 import duckdb
-from contextvars import ContextVar
 from pathlib import Path
+import json
+from fastapi import HTTPException, Header
+from typing import Optional
 from .config import get_passphrase_map
 
-# 数据文件存储目录，自动创建
+# 数据文件存储目录，默认位置
 DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-DB_PATH = DATA_DIR / "ganghaofan.duckdb"
 
-# 每个请求的数据库键（来自口令映射），默认空串表示默认库
-_current_db_key: ContextVar[str] = ContextVar("current_db_key", default="")
-
-# 连接池：不同 key 使用不同的连接
-_conns: dict[str, duckdb.DuckDBPyConnection] = {}
-
-# 全局数据库连接实例，延迟初始化
-_conn = None  # 保留但不再使用（兼容旧代码）
+# 全局单一连接
+_conn_single: duckdb.DuckDBPyConnection | None = None
 
 # 完整的表结构和索引定义
 # 使用序列生成自增主键，支持并发插入
@@ -117,29 +112,32 @@ CREATE INDEX IF NOT EXISTS idx_logs_action ON logs(action);
 """
 
 
-def set_request_db_key(key: str | None) -> None:
-    """在当前请求上下文设置数据库 key。"""
-    _current_db_key.set((key or "").strip())
-
-
-def _get_path_for_key(key: str) -> Path:
-    if not key:
-        return DB_PATH
-    return DATA_DIR / f"ganghaofan_{key}.duckdb"
+def _load_db_config_path() -> Path:
+    """从 server/config/db.json 读取 db_path，若不存在则使用默认路径。"""
+    cfg_file = Path(__file__).parent / "config" / "db.json"
+    if cfg_file.exists():
+        try:
+            data = json.loads(cfg_file.read_text(encoding="utf-8"))
+            if isinstance(data, dict) and data.get("db_path"):
+                p = Path(str(data["db_path"]))
+                # 若为相对路径，则相对于 server/ 目录
+                if not p.is_absolute():
+                    p = (Path(__file__).parent / p).resolve()
+                p.parent.mkdir(parents=True, exist_ok=True)
+                return p
+        except Exception:
+            pass
+    # 默认路径
+    return (DATA_DIR / "ganghaofan.duckdb").resolve()
 
 
 def get_conn():
-    """
-    获取（并按需创建）当前请求对应 key 的 DuckDB 连接。
-    """
-    # 基于当前请求的 db key 选择连接
-    key = _current_db_key.get()
-    if key in _conns:
-        return _conns[key]
-
-    path = _get_path_for_key(key)
-    con = duckdb.connect(str(path))
-    # 确保扩展与表结构
+    """获取（并按需创建）全局唯一的 DuckDB 连接。"""
+    global _conn_single
+    if _conn_single is not None:
+        return _conn_single
+    db_path = _load_db_config_path()
+    con = duckdb.connect(str(db_path))
     try:
         con.execute("INSTALL json")
     except Exception:
@@ -149,16 +147,12 @@ def get_conn():
     except Exception:
         pass
     con.execute(SCHEMA_SQL)
-    _conns[key] = con
-    return con
+    _conn_single = con
+    return _conn_single
 
 
 def init_db():
-    """
-    初始化数据库表结构和扩展（默认库）。
-    """
-    # 初始化默认库结构
-    set_request_db_key("")
+    """初始化单一库表结构和扩展。"""
     con = get_conn()
     # 再次确保 JSON 扩展就绪
     try:
@@ -173,41 +167,16 @@ def init_db():
 
 
 def init_all_dbs():
-    """
-    启动时预初始化所有配置的数据库：
-    - 默认库（空key）
-    - 配置文件/环境变量映射到的所有 key 的库
-    若文件不存在会自动创建；若未建表会自动执行SCHEMA。
-    """
-    # 1) 默认库
+    """兼容入口：现在仅初始化单一库。"""
     init_db()
-    # 2) 通过配置获取所有 key（passphrase -> key 的值集合）
-    try:
-        mapping = get_passphrase_map() or {}
-        keys = sorted({str(v).strip() for v in mapping.values() if str(v).strip()})
-        for k in keys:
-            try:
-                set_request_db_key(k)
-                con = get_conn()  # get_conn 会确保 JSON 扩展和 SCHEMA
-                # 再执行一次 SCHEMA 以防版本更新（幂等）
-                con.execute(SCHEMA_SQL)
-            except Exception:
-                # 单库失败不阻塞其他库初始化
-                continue
-    finally:
-        # 恢复到默认 key，避免影响后续请求上下文
-        set_request_db_key("")
 
 
-# FastAPI 依赖：从请求头读取 X-DB-Key 并设置当前请求的数据库
-try:
-    from fastapi import Header
-    from typing import Optional
-
-    async def use_db_key(x_db_key: Optional[str] = Header(default=None)):
-        set_request_db_key(x_db_key)
-        return x_db_key or ""
-
-except Exception:
-    # 非运行期导入 fastapi 失败时忽略（便于类型检查）
-    pass
+# FastAPI 依赖：校验来自 /env/resolve 的 key（不再切库，仅校验权限）
+async def use_db_key(x_db_key: Optional[str] = Header(default=None)):
+    mapping = get_passphrase_map() or {}
+    valid_keys = {str(v).strip() for v in mapping.values() if str(v).strip()}
+    # 允许在未配置口令时（空配置）直接通过；否则必须提供有效 key
+    if valid_keys:
+        if not x_db_key or str(x_db_key).strip() not in valid_keys:
+            raise HTTPException(status_code=403, detail="passphrase required")
+    return x_db_key or ""

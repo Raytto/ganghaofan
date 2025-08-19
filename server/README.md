@@ -41,6 +41,29 @@ Dev mock login (optional):
 - Alternatively set env `GHF_MOCK_AUTH` to a JSON string with the same fields.
 - When enabled, `/auth/login` returns a token for the fixed open_id.
 
+## Run tests
+
+The environment now includes pytest and requests. Start the server, then run tests:
+
+```powershell
+# in repo root, terminal 1 (server)
+conda activate ghf-server
+python -m uvicorn server.app:app --reload --host 127.0.0.1 --port 8000
+```
+
+```powershell
+# in repo root, terminal 2 (tests)
+conda activate ghf-server
+$env:GHF_TEST_PASSPHRASE = "test"   # optional; defaults to 'test'
+$env:GHF_API_BASE = "http://127.0.0.1:8000/api/v1"   # optional
+pytest -q server/qa_case/test_order_flow.py
+```
+
+Notes:
+- The test performs: login -> resolve passphrase -> publish a meal -> create/update/cancel order.
+- It assumes `server/config/passphrases.json` contains a mapping for the provided passphrase (e.g. `{ "test": "test" }`).
+- Tests are written to be idempotent and should not leave active orders.
+
 ## Notes
 - Immediate debit on order create; refund on cancel; modify = cancel + create
 - Boolean options only; balance can be negative
