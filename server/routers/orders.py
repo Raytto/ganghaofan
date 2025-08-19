@@ -8,6 +8,62 @@ from ..utils.security import get_open_id
 router = APIRouter()
 
 
+@router.get("/orders")
+def get_user_orders(meal_id: int = None, open_id: str = Depends(get_open_id)):
+    """
+    Get user's orders, optionally filtered by meal_id
+    Returns the user's order details for the specified meal
+    """
+    con = get_conn()
+    # find user id
+    urow = con.execute("SELECT id FROM users WHERE open_id=?", [open_id]).fetchone()
+    if not urow:
+        raise HTTPException(404, "user not found")
+    uid = urow[0]
+    
+    if meal_id is not None:
+        # Get specific order for a meal
+        row = con.execute(
+            "SELECT order_id, meal_id, qty, options_json, amount_cents, status FROM orders WHERE user_id=? AND meal_id=? AND status='active'",
+            [uid, meal_id],
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "no active order found for this meal")
+        
+        order_id, meal_id, qty, options_json, amount_cents, status = row
+        options = json.loads(options_json) if isinstance(options_json, str) else (options_json or [])
+        
+        return {
+            "order_id": order_id,
+            "meal_id": meal_id,
+            "qty": qty,
+            "options": options,
+            "amount_cents": amount_cents,
+            "status": status
+        }
+    else:
+        # Get all user's orders (could be useful for other features)
+        rows = con.execute(
+            "SELECT order_id, meal_id, qty, options_json, amount_cents, status FROM orders WHERE user_id=? AND status='active'",
+            [uid],
+        ).fetchall()
+        
+        orders = []
+        for row in rows:
+            order_id, meal_id, qty, options_json, amount_cents, status = row
+            options = json.loads(options_json) if isinstance(options_json, str) else (options_json or [])
+            orders.append({
+                "order_id": order_id,
+                "meal_id": meal_id,
+                "qty": qty,
+                "options": options,
+                "amount_cents": amount_cents,
+                "status": status
+            })
+        
+        return {"orders": orders}
+
+
 class CreateOrderReq(BaseModel):
     meal_id: int
     qty: int
@@ -304,3 +360,32 @@ def delete_order(order_id: int, open_id: str = Depends(get_open_id)):
         ],
     )
     return {"order_id": order_id, "balance_cents": bal, "status": "canceled"}
+
+
+@router.delete("/orders")
+def delete_order_by_meal(meal_id: int, open_id: str = Depends(get_open_id)):
+    """
+    Cancel user's order for a specific meal by meal_id
+    This is a convenience endpoint for when the frontend only knows the meal_id
+    """
+    con = get_conn()
+    # find user id
+    urow = con.execute("SELECT id FROM users WHERE open_id=?", [open_id]).fetchone()
+    if not urow:
+        raise HTTPException(404, "user not found")
+    uid = urow[0]
+    
+    # find user's active order for this meal
+    row = con.execute(
+        "SELECT order_id FROM orders WHERE user_id=? AND meal_id=? AND status='active'",
+        [uid, meal_id],
+    ).fetchone()
+    if not row:
+        # No active order found - this is fine, return success (idempotent)
+        bal_row = con.execute("SELECT balance_cents FROM users WHERE id=?", [uid]).fetchone()
+        balance = bal_row[0] if bal_row else 0
+        return {"message": "no active order found", "balance_cents": balance, "status": "success"}
+    
+    order_id = row[0]
+    # delegate to existing delete_order logic
+    return delete_order(order_id, open_id)
