@@ -12,36 +12,119 @@
 技术栈：FastAPI + DuckDB + JWT认证
 """
 
-from fastapi import FastAPI
-from .routers import auth, users, meals, orders, logs, env
-from .db import init_db, init_all_dbs, use_db_key
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+
+# 导入新的模块结构
+from .core.database import db_manager
+from .core.exceptions import BaseApplicationError
+from .api.v1 import auth, users, meals, orders, logs, env
+
+# 向后兼容：保持原有的导入路径可用
+from .db import use_db_key
 from fastapi import Depends
 
-app = FastAPI(title="GangHaoFan API", version="0.1.0")
 
-
-@app.on_event("startup")
-def _on_startup():
-    """应用启动时初始化数据库表结构"""
-    # 初始化默认库和所有配置映射的库
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期管理"""
+    # 启动时初始化数据库
     try:
-        init_all_dbs()
-    except Exception:
-        # 回退至少初始化默认库，避免启动失败
-        init_db()
+        db_manager.init_database()
+        print("Database initialized successfully")
+    except Exception as e:
+        print(f"Database initialization failed: {e}")
+        # 不要让应用启动失败，允许在运行时重试
+    
+    yield
+    
+    # 关闭时的清理工作可以在这里添加
 
 
-# 注册路由模块，统一使用 /api/v1 前缀
-# 登录不强制口令
-app.include_router(auth.router, prefix="/api/v1")
-app.include_router(users.router, prefix="/api/v1", dependencies=[Depends(use_db_key)])
-app.include_router(meals.router, prefix="/api/v1", dependencies=[Depends(use_db_key)])
-app.include_router(orders.router, prefix="/api/v1", dependencies=[Depends(use_db_key)])
-app.include_router(logs.router, prefix="/api/v1", dependencies=[Depends(use_db_key)])
-app.include_router(env.router, prefix="/api/v1")
+app = FastAPI(
+    title="GangHaoFan API",
+    version="2.0.0",
+    description="罡好饭餐饮订购系统API",
+    lifespan=lifespan
+)
+
+# 添加CORS中间件
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 在生产环境中应该限制具体域名
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
-@app.get("/api/v1/health")
+@app.exception_handler(BaseApplicationError)
+async def application_error_handler(request, exc: BaseApplicationError):
+    """统一处理应用异常"""
+    return HTTPException(
+        status_code=400,
+        detail={
+            "error_code": exc.error_code,
+            "message": exc.message,
+            "details": exc.details
+        }
+    )
+
+
+# 注册API路由模块
+app.include_router(auth.router, prefix="/api/v1", tags=["认证"])
+app.include_router(
+    users.router, 
+    prefix="/api/v1", 
+    tags=["用户"], 
+    dependencies=[Depends(use_db_key)]
+)
+app.include_router(
+    meals.router, 
+    prefix="/api/v1", 
+    tags=["餐次"], 
+    dependencies=[Depends(use_db_key)]
+)
+app.include_router(
+    orders.router, 
+    prefix="/api/v1", 
+    tags=["订单"], 
+    dependencies=[Depends(use_db_key)]
+)
+app.include_router(
+    logs.router, 
+    prefix="/api/v1", 
+    tags=["日志"], 
+    dependencies=[Depends(use_db_key)]
+)
+app.include_router(env.router, prefix="/api/v1", tags=["环境"])
+
+
+@app.get("/api/v1/health", tags=["系统"])
 def health():
-    """健康检查接口，用于验证服务可用性"""
-    return {"ok": True}
+    """健康检查接口"""
+    try:
+        # 测试数据库连接
+        db_manager.get_connection()
+        return {
+            "status": "healthy",
+            "version": "2.0.0",
+            "database": "connected"
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "version": "2.0.0",
+            "database": f"error: {str(e)}"
+        }
+
+
+@app.get("/", tags=["系统"])
+def root():
+    """根路径"""
+    return {
+        "name": "GangHaoFan API",
+        "version": "2.0.0",
+        "description": "罡好饭餐饮订购系统API"
+    }
