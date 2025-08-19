@@ -1,0 +1,109 @@
+/* Order dialog specific styles */
+
+.option-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+
+.option-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.option-name {
+  color: #C9D1D9;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.option-price {
+  color: #8B949E;
+  font-size: 11px;
+}
+
+/* Toggle switch styling - Taobao-inspired */
+.option-toggle {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  border-radius: 12px;
+  background: #21262D;
+  border: 1px solid rgba(255,255,255,0.12);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.option-toggle.selected {
+  background: #1F6FEB;
+  border-color: #1F6FEB;
+}
+
+.toggle-inner {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #C9D1D9;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.option-toggle.selected .toggle-inner {
+  transform: translateX(20px);
+  background: #FFFFFF;
+}
+
+.option-toggle:active {
+  transform: scale(0.98);
+}
+
+.option-readonly {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 24px;
+}
+
+.readonly-indicator {
+  color: #8B949E;
+  font-size: 14px;
+}
+
+/* Light theme variants */
+.light-theme .option-toggle {
+  background: #F6F8FA;
+  border-color: #D0D7DE;
+}
+
+.light-theme .option-toggle.selected {
+  background: #0969DA;
+  border-color: #0969DA;
+}
+
+.light-theme .toggle-inner {
+  background: #656D76;
+}
+
+.light-theme .option-toggle.selected .toggle-inner {
+  background: #FFFFFF;
+}
+
+.light-theme .option-name {
+  color: #24292F;
+}
+
+.light-theme .option-price {
+  color: #656D76;
+}
+
+.light-theme .readonly-indicator {
+  color: #656D76;
+}

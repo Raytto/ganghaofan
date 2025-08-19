@@ -108,6 +108,7 @@
 
 <!-- User Order Dialog (component) -->
 <order-dialog
+  id="order-dialog"
   show="{{showOrder}}"
   detail="{{orderDetail}}"
   bind:close="closeOrderDialog"
