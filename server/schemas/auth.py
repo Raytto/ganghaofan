@@ -7,15 +7,56 @@ from typing import Optional
 
 
 class LoginRequest(BaseModel):
-    """微信登录请求"""
-    code: str = Field(..., description="微信登录code")
+    """登录请求"""
+    code: str = Field(description="微信登录凭证", example="061234567890123456789")
+    db_key: str = Field(description="数据库访问密钥", example="dev_key")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "code": "061234567890123456789",
+                "db_key": "dev_key"
+            }
+        }
 
+class TokenInfo(BaseModel):
+    """Token信息"""
+    token: str = Field(description="访问令牌")
+    expires_in: int = Field(description="过期时间(秒)")
+    token_type: str = Field(default="Bearer", description="令牌类型")
+
+class UserInfo(BaseModel):
+    """用户信息"""
+    user_id: int = Field(description="用户ID")
+    openid: str = Field(description="微信OpenID")
+    nickname: Optional[str] = Field(None, description="用户昵称")
+    avatar_url: Optional[str] = Field(None, description="头像URL")
+    balance_cents: int = Field(description="余额(分)")
+    is_admin: bool = Field(description="是否为管理员")
 
 class LoginResponse(BaseModel):
     """登录响应"""
-    token: str = Field(..., description="JWT访问token")
-    user_id: int = Field(..., description="用户ID")
-    is_admin: bool = Field(False, description="是否为管理员")
+    token_info: TokenInfo = Field(description="令牌信息")
+    user_info: UserInfo = Field(description="用户信息")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "token_info": {
+                    "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...",
+                    "expires_in": 604800,
+                    "token_type": "Bearer"
+                },
+                "user_info": {
+                    "user_id": 123,
+                    "openid": "ox_12345678901234567890",
+                    "nickname": "张三",
+                    "avatar_url": "https://...",
+                    "balance_cents": 5000,
+                    "is_admin": False
+                }
+            }
+        }
 
 
 class PassphraseResolveRequest(BaseModel):
