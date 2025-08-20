@@ -1,5 +1,6 @@
 {
-    "mock_enabled": true,
-    "open_id": "pp_015",
-    "nickname": "测试用户15"
+    "enabled": true,
+    "openid": "mock_dev_user",
+    "nickname": "开发测试用户",
+    "unique_per_login": false
 }

@@ -2,7 +2,7 @@
 餐次相关数据模型
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from datetime import date
 from typing import Optional, List
 from enum import Enum
@@ -37,7 +37,7 @@ class MealOption(BaseModel):
 
 class MealBase(BaseModel):
     """餐次基础字段"""
-    date: date = Field(..., description="餐次日期")
+    meal_date: date = Field(..., description="餐次日期")
     slot: MealSlot = Field(..., description="时段")
     title: Optional[str] = Field(None, max_length=200, description="餐次标题")
     description: Optional[str] = Field(None, max_length=1000, description="餐次描述")
@@ -51,7 +51,7 @@ class MealBase(BaseModel):
         """基础价格（元）"""
         return self.base_price_cents / 100
     
-    @validator('options')
+    @field_validator('options')
     def validate_options(cls, v):
         """验证配菜选项ID的唯一性"""
         if not v:
@@ -76,7 +76,7 @@ class MealUpdate(BaseModel):
     capacity: Optional[int] = Field(None, gt=0, description="容量限制")
     options: Optional[List[MealOption]] = Field(None, description="可选配菜列表")
     
-    @validator('options')
+    @field_validator('options')
     def validate_options(cls, v):
         """验证配菜选项ID的唯一性"""
         if not v:
@@ -109,7 +109,7 @@ class Meal(MealBase, BaseEntity, TimestampMixin):
 class MealSummary(BaseModel):
     """餐次摘要（用于日历展示）"""
     meal_id: int = Field(..., description="餐次ID")
-    date: date = Field(..., description="餐次日期")
+    meal_date: date = Field(..., description="餐次日期")
     slot: MealSlot = Field(..., description="时段")
     title: Optional[str] = Field(None, description="餐次标题")
     base_price_cents: int = Field(..., description="基础价格（分）")

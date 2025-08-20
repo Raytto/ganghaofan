@@ -17,7 +17,7 @@ class MealOptionSchema(BaseModel):
 
 class MealCreateRequest(BaseModel):
     """餐次创建请求"""
-    date: date = Field(..., description="餐次日期")
+    meal_date: date = Field(..., description="餐次日期")
     slot: MealSlot = Field(..., description="时段")
     title: Optional[str] = Field(None, description="标题")
     description: Optional[str] = Field(None, description="描述")
@@ -39,7 +39,7 @@ class MealUpdateRequest(BaseModel):
 class MealResponse(BaseModel):
     """餐次响应"""
     meal_id: int = Field(..., description="餐次ID")
-    date: date = Field(..., description="日期")
+    meal_date: date = Field(..., description="日期")
     slot: MealSlot = Field(..., description="时段")
     title: Optional[str] = Field(None, description="标题")
     description: Optional[str] = Field(None, description="描述")

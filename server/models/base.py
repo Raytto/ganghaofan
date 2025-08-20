@@ -17,11 +17,7 @@ class TimestampMixin(BaseModel):
 class BaseEntity(BaseModel):
     """基础实体模型"""
     
-    class Config:
-        # 允许从ORM对象创建
-        from_attributes = True
-        # 使用枚举值而不是枚举名称
-        use_enum_values = True
+    model_config = {"from_attributes": True, "use_enum_values": True}
 
 
 class PaginationParams(BaseModel):

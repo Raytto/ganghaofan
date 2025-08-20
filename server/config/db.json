@@ -1,3 +1,3 @@
 {
-    "db_path": "server/data/ganghaofan.duckdb"
+    "db_path": "/home/pp/mp/ganghaofan/server/data/ganghaofan.duckdb"
 }
