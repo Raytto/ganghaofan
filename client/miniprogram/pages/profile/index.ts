@@ -1,30 +1,40 @@
 import { api, getDbKey } from '../../utils/api'
 import { promptPassphrase } from '../../utils/passphrase'
+import { createPageReactive, stateManager, actions } from '../../core/store'
 
 Page({
+    // 混入响应式功能
+    ...createPageReactive(),
+
     data: {
         darkMode: true,
         themeClass: '',
         balance: 0,
         loadingBalance: false,
         dbKey: '',
-        user: {} as any
+        user: {} as any,
+        isAdmin: false
     },
+    onLoad() {
+        // 绑定状态
+        this.bindState({
+            darkMode: 'app.darkMode',
+            isAdmin: 'user.isAdmin',
+            balance: 'user.balance'
+        })
+    },
+
     onShow() {
         const tab = (this as any).getTabBar && (this as any).getTabBar()
         if (tab && typeof (tab as any).updateSelected === 'function') {
             (tab as any).updateSelected()
         }
 
-        // 加载当前主题状态
-        const app = getApp<IAppOption>()
-        if (app && app.globalData) {
-            const darkMode = !!app.globalData.darkMode
-            this.setData({
-                darkMode: darkMode,
-                themeClass: darkMode ? '' : 'light-theme'
-            })
-        }
+        // 主题类名根据状态自动更新
+        const darkMode = stateManager.getState<boolean>('app.darkMode')
+        this.setData({
+            themeClass: darkMode ? '' : 'light-theme'
+        })
 
         // 加载用户信息和余额
         this.loadUser()
@@ -58,9 +68,10 @@ Page({
         this.setData({ loadingBalance: true })
         try {
             const response = await api.request<{ user_id: number, balance_cents: number }>('/users/me/balance')
-            this.setData({
-                balance: response.balance_cents / 100 // 转换为元
-            })
+            const balanceInYuan = response.balance_cents / 100
+            
+            // 更新全局状态
+            actions.user.updateBalance(balanceInYuan)
         } catch (error) {
             console.error('加载余额失败:', error)
             wx.showToast({
@@ -78,14 +89,15 @@ Page({
     },
     onToggleDarkMode(e: WechatMiniprogram.SwitchChange) {
         const checked = !!(e && (e.detail as any).value)
-        const app = getApp<IAppOption>()
-        if (app && app.switchTheme) {
-            app.switchTheme(checked)
-        }
+        
+        // 使用新的状态管理
+        actions.app.setDarkMode(checked)
+        
+        // 更新主题类名
         this.setData({
-            darkMode: checked,
             themeClass: checked ? '' : 'light-theme'
         })
+        
         // 反馈
         wx.showToast({ title: checked ? '深色模式已开启' : '浅色模式已开启', icon: 'none' })
     },

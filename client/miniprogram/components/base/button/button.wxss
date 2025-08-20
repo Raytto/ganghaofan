@@ -1,0 +1,127 @@
+/* 基础按钮组件样式 */
+.base-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 8rpx;
+  font-size: 32rpx;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+  outline: none;
+  cursor: pointer;
+}
+
+/* 按钮类型样式 */
+.base-button--primary {
+  background: var(--color-primary, #007AFF);
+  color: #fff;
+}
+
+.base-button--primary:hover {
+  background: var(--color-primary-hover, #0056CC);
+}
+
+.base-button--secondary {
+  background: var(--color-secondary, #F2F2F2);
+  color: var(--color-text-primary, #333);
+}
+
+.base-button--secondary:hover {
+  background: var(--color-secondary-hover, #E6E6E6);
+}
+
+.base-button--danger {
+  background: var(--color-error, #FF3B30);
+  color: #fff;
+}
+
+.base-button--danger:hover {
+  background: var(--color-error-hover, #D70015);
+}
+
+.base-button--ghost {
+  background: transparent;
+  border: 2rpx solid var(--color-primary, #007AFF);
+  color: var(--color-primary, #007AFF);
+}
+
+.base-button--ghost:hover {
+  background: var(--color-primary, #007AFF);
+  color: #fff;
+}
+
+/* 按钮大小样式 */
+.base-button--small {
+  height: 60rpx;
+  padding: 0 24rpx;
+  font-size: 28rpx;
+}
+
+.base-button--medium {
+  height: 80rpx;
+  padding: 0 32rpx;
+  font-size: 32rpx;
+}
+
+.base-button--large {
+  height: 100rpx;
+  padding: 0 40rpx;
+  font-size: 36rpx;
+}
+
+/* 块级按钮 */
+.base-button--block {
+  width: 100%;
+}
+
+/* 禁用状态 */
+.base-button--disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 加载状态 */
+.base-button--loading {
+  cursor: wait;
+}
+
+.base-button__loading {
+  margin-right: 16rpx;
+  display: flex;
+  align-items: center;
+}
+
+.base-button__spinner {
+  width: 24rpx;
+  height: 24rpx;
+  border: 2rpx solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+.base-button__text {
+  flex: 1;
+}
+
+/* 动画 */
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 深色主题适配 */
+@media (prefers-color-scheme: dark) {
+  .base-button--secondary {
+    background: var(--color-secondary-dark, #2C2C2E);
+    color: var(--color-text-primary-dark, #FFFFFF);
+  }
+  
+  .base-button--secondary:hover {
+    background: var(--color-secondary-hover-dark, #3A3A3C);
+  }
+}

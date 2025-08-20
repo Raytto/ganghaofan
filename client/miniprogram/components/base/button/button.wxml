@@ -1,0 +1,13 @@
+<button 
+  class="base-button base-button--{{type}} base-button--{{size}} {{block ? 'base-button--block' : ''}} {{disabled ? 'base-button--disabled' : ''}} {{loading ? 'base-button--loading' : ''}} {{customClass}}"
+  disabled="{{disabled || loading}}"
+  bindtap="onTap"
+  bindtouchstart="onTouchStart"
+  bindtouchend="onTouchEnd"
+>
+  <view wx:if="{{loading}}" class="base-button__loading">
+    <view class="base-button__spinner"></view>
+  </view>
+  <text class="base-button__text">{{text}}</text>
+  <slot></slot>
+</button>

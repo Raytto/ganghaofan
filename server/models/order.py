@@ -11,8 +11,28 @@ from .base import BaseEntity, TimestampMixin
 
 class OrderStatus(str, Enum):
     """订单状态枚举"""
-    ACTIVE = "active"       # 有效
-    CANCELED = "canceled"   # 已取消
+    ACTIVE = "active"       # 活跃订单（可修改/取消）
+    LOCKED = "locked"       # 锁定订单（不可修改，但有效）
+    CANCELED = "canceled"   # 已取消（用户操作）
+    COMPLETED = "completed" # 已完成
+    REFUNDED = "refunded"   # 已退款（系统/管理员操作）
+    
+    @classmethod
+    def get_transitions(cls) -> dict:
+        """获取状态流转关系"""
+        return {
+            cls.ACTIVE: [cls.LOCKED, cls.CANCELED, cls.REFUNDED],
+            cls.LOCKED: [cls.ACTIVE, cls.COMPLETED, cls.REFUNDED],
+            cls.COMPLETED: [],  # 终态
+            cls.CANCELED: [],   # 终态
+            cls.REFUNDED: []    # 终态
+        }
+    
+    @classmethod
+    def can_transition(cls, from_status: str, to_status: str) -> bool:
+        """检查状态是否可以流转"""
+        transitions = cls.get_transitions()
+        return to_status in transitions.get(from_status, [])
 
 
 class LedgerType(str, Enum):
@@ -32,8 +52,9 @@ class RefType(str, Enum):
 
 class OrderBase(BaseModel):
     """订单基础字段"""
-    qty: int = Field(1, ge=1, description="数量")
-    options: List[str] = Field(default_factory=list, description="选择的配菜选项ID列表")
+    quantity: int = Field(1, ge=1, description="数量")
+    selected_options: List[dict] = Field(default_factory=list, description="选择的配菜选项详情列表")
+    notes: Optional[str] = Field(None, max_length=500, description="订单备注")
 
 
 class OrderCreate(OrderBase):
@@ -41,9 +62,25 @@ class OrderCreate(OrderBase):
     meal_id: int = Field(..., description="餐次ID")
 
 
-class OrderUpdate(OrderBase):
+class OrderUpdate(BaseModel):
     """订单更新模型"""
-    pass
+    quantity: Optional[int] = Field(None, ge=1, description="数量")
+    selected_options: Optional[List[dict]] = Field(None, description="选择的配菜选项详情列表")
+    notes: Optional[str] = Field(None, max_length=500, description="订单备注")
+
+
+class OrderModify(BaseModel):
+    """订单修改模型（用于原子性修改）"""
+    new_quantity: int = Field(..., ge=1, description="新数量")
+    new_selected_options: List[dict] = Field(default_factory=list, description="新的配菜选项")
+    new_notes: Optional[str] = Field(None, max_length=500, description="新的备注")
+
+
+class OrderBatch(BaseModel):
+    """批量订单操作模型"""
+    order_ids: List[int] = Field(..., description="订单ID列表")
+    action: str = Field(..., description="操作类型: complete, cancel, refund")
+    reason: Optional[str] = Field(None, max_length=500, description="操作原因")
 
 
 class Order(OrderBase, BaseEntity, TimestampMixin):
@@ -51,19 +88,24 @@ class Order(OrderBase, BaseEntity, TimestampMixin):
     order_id: int = Field(..., description="订单ID")
     user_id: int = Field(..., description="用户ID")
     meal_id: int = Field(..., description="餐次ID")
-    amount_cents: int = Field(..., description="订单总金额（分）")
-    status: OrderStatus = Field(..., description="订单状态")
+    total_price_cents: int = Field(..., description="订单总金额（分）")
+    status: OrderStatus = Field(OrderStatus.ACTIVE, description="订单状态")
     locked_at: Optional[datetime] = Field(None, description="锁定时间")
     
     @property
     def amount_yuan(self) -> float:
         """订单金额（元）"""
-        return self.amount_cents / 100
+        return self.total_price_cents / 100
     
     @property
     def is_locked(self) -> bool:
         """是否已锁定"""
         return self.locked_at is not None
+    
+    @property
+    def is_modifiable(self) -> bool:
+        """是否可修改（只有活跃状态的订单可修改）"""
+        return self.status == OrderStatus.ACTIVE
 
 
 class OrderDetail(BaseModel):

@@ -1,0 +1,67 @@
+<view class="base-input {{customClass}} {{error ? 'base-input--error' : ''}} {{focused ? 'base-input--focused' : ''}} {{disabled ? 'base-input--disabled' : ''}}">
+  <!-- 标签 -->
+  <view wx:if="{{label}}" class="base-input__label">
+    <text class="base-input__label-text">{{label}}</text>
+    <text wx:if="{{required}}" class="base-input__required">*</text>
+  </view>
+
+  <!-- 输入框容器 -->
+  <view class="base-input__wrapper">
+    <!-- 普通输入框 -->
+    <input
+      wx:if="{{type !== 'textarea'}}"
+      class="base-input__field"
+      type="{{type}}"
+      value="{{value}}"
+      placeholder="{{placeholder}}"
+      disabled="{{disabled}}"
+      readonly="{{readonly}}"
+      maxlength="{{maxlength}}"
+      bindinput="onInput"
+      bindfocus="onFocus"
+      bindblur="onBlur"
+      bindconfirm="onConfirm"
+      bindkeyboardheightchange="onKeyboardHeightChange"
+    />
+
+    <!-- 多行文本框 -->
+    <textarea
+      wx:if="{{type === 'textarea'}}"
+      class="base-input__field base-input__textarea"
+      value="{{value}}"
+      placeholder="{{placeholder}}"
+      disabled="{{disabled}}"
+      readonly="{{readonly}}"
+      maxlength="{{maxlength}}"
+      auto-height
+      bindinput="onInput"
+      bindfocus="onFocus"
+      bindblur="onBlur"
+      bindconfirm="onConfirm"
+      bindkeyboardheightchange="onKeyboardHeightChange"
+    />
+
+    <!-- 清除按钮 -->
+    <view
+      wx:if="{{value && !disabled && !readonly}}"
+      class="base-input__clear"
+      bindtap="onClear"
+    >
+      <text class="base-input__clear-icon">×</text>
+    </view>
+  </view>
+
+  <!-- 底部信息栏 -->
+  <view wx:if="{{error || helper || showCount}}" class="base-input__footer">
+    <!-- 错误信息 -->
+    <text wx:if="{{error}}" class="base-input__error-text">{{error}}</text>
+    
+    <!-- 帮助文本 -->
+    <text wx:elif="{{helper}}" class="base-input__helper-text">{{helper}}</text>
+    
+    <!-- 字符计数 -->
+    <view wx:if="{{showCount}}" class="base-input__count">
+      <text class="base-input__count-text">{{currentLength}}{{maxlength > 0 ? '/' + maxlength : ''}}</text>
+    </view>
+  </view>
+</view>

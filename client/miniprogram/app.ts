@@ -1,43 +1,60 @@
 // app.ts
 import { loginAndGetToken } from './utils/api'
+import { stateManager, actions } from './core/store'
 
 App<IAppOption>({
   globalData: {
+    // 保留兼容性，逐步迁移到新状态管理
     debugMode: true,
     isAdmin: true,
     adminViewEnabled: true,
-    darkMode: true, // 默认深色模式开启
+    darkMode: true,
   },
-  onLaunch() {
+  
+  async onLaunch() {
+    // 初始化状态管理系统
+    await actions.combined.initializeApp()
+    
     // 环境：develop | trial | release
     const account = wx.getAccountInfoSync && wx.getAccountInfoSync()
     const env = account && account.miniProgram && account.miniProgram.envVersion
     const debugMode = env === 'develop'
 
-    // 本地持久化的管理视图开关
-    const adminViewEnabled = !!wx.getStorageSync('admin_view_enabled')
-    // 非调试环境下，也可支持手动存一个 is_admin 标记（留作后端鉴权接入前的临时方案）
-    const storedAdmin = !!wx.getStorageSync('is_admin')
-    const isAdmin = debugMode || storedAdmin
+    // 更新应用状态
+    actions.app.setDebugMode(debugMode)
 
-    // 主题模式持久化，默认深色模式
-    const storedDarkMode = wx.getStorageSync('dark_mode')
-    const darkMode = storedDarkMode !== null ? !!storedDarkMode : true
-
-    this.globalData.debugMode = debugMode
-    this.globalData.isAdmin = isAdmin
-    this.globalData.adminViewEnabled = adminViewEnabled
-    this.globalData.darkMode = darkMode
-
-    // 登录并缓存 token（静态导入，避免动态导入在 appservice 中报错）
-    loginAndGetToken().catch(err => {
-      console.error('login failed', err)
+    // 同步到 globalData 保持兼容性
+    this.syncStateToGlobalData()
+    
+    // 监听状态变化，同步到 globalData
+    stateManager.onStateChange((state, changedPath) => {
+      this.syncStateToGlobalData()
+      
+      // 处理主题切换
+      if (changedPath === 'app.darkMode') {
+        this.handleThemeChange(state.app.darkMode)
+      }
     })
+
+    // 登录并缓存 token
+    try {
+      await loginAndGetToken()
+    } catch (err) {
+      console.error('login failed', err)
+    }
   },
-  // 主题切换方法
-  switchTheme(darkMode: boolean) {
-    this.globalData.darkMode = darkMode
-    wx.setStorageSync('dark_mode', darkMode)
+
+  // 同步状态到 globalData
+  syncStateToGlobalData() {
+    const state = stateManager.getState()
+    this.globalData.debugMode = state.app.debugMode
+    this.globalData.isAdmin = state.user.isAdmin
+    this.globalData.adminViewEnabled = state.app.adminViewEnabled
+    this.globalData.darkMode = state.app.darkMode
+  },
+
+  // 处理主题变化
+  handleThemeChange(darkMode: boolean) {
     // 通知所有页面更新主题
     const pages = getCurrentPages()
     pages.forEach(page => {
@@ -56,5 +73,10 @@ App<IAppOption>({
         })
       }
     })
+  },
+
+  // 主题切换方法（保持向后兼容）
+  switchTheme(darkMode: boolean) {
+    actions.app.setDarkMode(darkMode)
   }
 })
