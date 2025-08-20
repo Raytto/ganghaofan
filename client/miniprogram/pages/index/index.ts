@@ -730,9 +730,13 @@ Component({
         // Get selected options from the order dialog component
         const orderDialog = this.selectComponent('#order-dialog')
         const selectedOptions = orderDialog ? orderDialog.data.selectedOptions || [] : []
-        // backend enforces single order per meal; reuse POST to replace
-        const payload = { meal_id: d.meal_id, qty: 1, options: selectedOptions }
-        await api.request('/orders', { method: 'POST', data: payload })
+        
+        // First get the user's current order to get the order_id
+        const userOrder = await api.request(`/orders?meal_id=${d.meal_id}`, { method: 'GET' })
+        
+        // Use PATCH to update the existing order
+        const payload = { qty: 1, options: selectedOptions }
+        await api.request(`/orders/${userOrder.order_id}`, { method: 'PATCH', data: payload })
         wx.showToast({ title: '已更新', icon: 'success' })
         this.closeOrderDialog()
       } catch (e: any) {
