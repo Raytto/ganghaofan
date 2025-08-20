@@ -1475,316 +1475,224 @@ class TestOrdersAPI:
         assert data["data"]["failed_count"] == 0
 ```
 
-##### 4. 前端测试示例
+##### 4. 测试执行与CI/CD集成
 
-**新建文件: `client/miniprogram/tests/api.test.js`**
-```javascript
-/**
- * API测试示例
- * 注意：微信小程序的测试需要特殊的测试框架，这里提供思路
- */
+**创建测试运行脚本 (`server/scripts/run_tests.sh`)**
+```bash
+#!/bin/bash
 
-// 使用Jest或类似框架进行API模块测试
-describe('API Client', () => {
-  beforeEach(() => {
-    // Mock wx.request
-    global.wx = {
-      request: jest.fn(),
-      showLoading: jest.fn(),
-      hideLoading: jest.fn(),
-      showToast: jest.fn()
-    };
-  });
+# 后端单元测试完整执行脚本
+# 包含环境准备、测试执行、清理工作
 
-  describe('MealAPI', () => {
-    test('should fetch meals by date range', async () => {
-      // Mock成功响应
-      wx.request.mockImplementation(({ success }) => {
-        success({
-          statusCode: 200,
-          data: {
-            success: true,
-            data: [
-              {
-                meal_id: 123,
-                date: '2024-01-15',
-                slot: 'lunch',
-                description: '香辣鸡腿饭'
-              }
-            ]
-          }
-        });
-      });
+set -e  # 遇到错误立即退出
 
-      const { MealAPI } = require('../core/api/meal');
-      const result = await MealAPI.getMealsByDateRange('2024-01-15', '2024-01-20');
+echo "=== 罡好饭后端测试套件 ==="
+echo "开始时间: $(date)"
 
-      expect(result.success).toBe(true);
-      expect(result.data).toHaveLength(1);
-      expect(result.data[0].meal_id).toBe(123);
-    });
+# 1. 环境检查
+echo "📋 检查测试环境..."
 
-    test('should handle network error', async () => {
-      // Mock网络错误
-      wx.request.mockImplementation(({ fail }) => {
-        fail({ errMsg: 'request:fail timeout' });
-      });
+# 检查Python版本
+python_version=$(python --version 2>&1)
+echo "Python版本: $python_version"
 
-      const { MealAPI } = require('../core/api/meal');
-      const result = await MealAPI.getMealsByDateRange('2024-01-15', '2024-01-20');
+# 检查依赖包
+if ! python -c "import pytest" 2>/dev/null; then
+    echo "❌ pytest未安装，正在安装测试依赖..."
+    pip install pytest pytest-asyncio pytest-cov
+fi
 
-      expect(result.success).toBe(false);
-      expect(result.error_code).toBe('NETWORK_ERROR');
-    });
-  });
+# 2. 设置测试环境变量
+echo "⚙️  配置测试环境..."
+export TESTING=true
+export DATABASE_URL="duckdb:///:memory:"
+export JWT_SECRET_KEY="test-secret-key-for-testing-only"
 
-  describe('OrderAPI', () => {
-    test('should create order successfully', async () => {
-      wx.request.mockImplementation(({ success }) => {
-        success({
-          statusCode: 200,
-          data: {
-            success: true,
-            data: {
-              order_id: 456,
-              meal_id: 123,
-              quantity: 2,
-              status: 'active'
-            }
-          }
-        });
-      });
+# 3. 创建测试目录结构
+echo "📁 准备测试目录..."
+mkdir -p server/tests/reports
+mkdir -p server/tests/coverage
 
-      const { OrderAPI } = require('../core/api/order');
-      const orderData = {
-        meal_id: 123,
-        quantity: 2,
-        selected_options: []
-      };
-      
-      const result = await OrderAPI.createOrder(orderData);
+# 4. 运行测试套件
+echo "🧪 执行测试套件..."
 
-      expect(result.success).toBe(true);
-      expect(result.data.order_id).toBe(456);
-      expect(wx.showLoading).toHaveBeenCalled();
-    });
+# 基础单元测试
+echo "  → 运行单元测试..."
+python -m pytest server/tests/test_*.py \
+    --verbose \
+    --tb=short \
+    --durations=10 \
+    --junit-xml=server/tests/reports/junit.xml
 
-    test('should handle business rule error', async () => {
-      wx.request.mockImplementation(({ success }) => {
-        success({
-          statusCode: 400,
-          data: {
-            success: false,
-            message: '余额不足',
-            error_code: 'INSUFFICIENT_BALANCE'
-          }
-        });
-      });
+# 带覆盖率的完整测试
+echo "  → 运行覆盖率测试..."
+python -m pytest server/tests/ \
+    --cov=server \
+    --cov-report=html:server/tests/coverage/html \
+    --cov-report=xml:server/tests/coverage/coverage.xml \
+    --cov-report=term-missing \
+    --cov-fail-under=80 \
+    --verbose
 
-      const { OrderAPI } = require('../core/api/order');
-      const result = await OrderAPI.createOrder({
-        meal_id: 123,
-        quantity: 2
-      });
+# 5. 性能测试（可选）
+if [ "$1" = "--with-performance" ]; then
+    echo "  → 运行性能测试..."
+    python -m pytest server/tests/test_performance.py \
+        --benchmark-only \
+        --benchmark-json=server/tests/reports/benchmark.json
+fi
 
-      expect(result.success).toBe(false);
-      expect(result.error_code).toBe('INSUFFICIENT_BALANCE');
-    });
-  });
+# 6. 测试报告
+echo "📊 生成测试报告..."
+echo "✅ 所有测试完成！"
+echo "📄 测试报告位置:"
+echo "   - JUnit XML: server/tests/reports/junit.xml"
+echo "   - 覆盖率 HTML: server/tests/coverage/html/index.html"
+echo "   - 覆盖率 XML: server/tests/coverage/coverage.xml"
 
-  describe('Retry Mechanism', () => {
-    test('should retry on network error', async () => {
-      let callCount = 0;
-      wx.request.mockImplementation(({ success, fail }) => {
-        callCount++;
-        if (callCount < 3) {
-          fail({ errMsg: 'request:fail timeout' });
-        } else {
-          success({
-            statusCode: 200,
-            data: { success: true, data: 'success' }
-          });
-        }
-      });
+# 7. 清理临时文件
+echo "🧹 清理测试环境..."
+find . -name "*.pyc" -delete
+find . -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 
-      const { apiClient } = require('../core/api/base');
-      const result = await apiClient.get('/test');
+echo "完成时间: $(date)"
+echo "===================="
+```
 
-      expect(callCount).toBe(3); // 2次重试 + 1次成功
-      expect(result.success).toBe(true);
-    });
-  });
-});
+**测试配置文件 (`server/pytest.ini`)**
+```ini
+[tool:pytest]
+# pytest配置文件
+testpaths = server/tests
+python_files = test_*.py *_test.py
+python_classes = Test*
+python_functions = test_*
 
-// 状态管理测试
-describe('State Management', () => {
-  beforeEach(() => {
-    // Mock wx存储API
-    global.wx = {
-      getStorageSync: jest.fn(),
-      setStorageSync: jest.fn(),
-      removeStorageSync: jest.fn()
-    };
-  });
+# 测试发现和执行配置
+addopts = 
+    --strict-markers
+    --strict-config
+    --disable-warnings
+    --tb=short
 
-  describe('StateManager', () => {
-    test('should manage state correctly', () => {
-      const { stateManager } = require('../core/store');
-      
-      // 设置状态
-      stateManager.setState('user.balance', 1000);
-      expect(stateManager.getState('user.balance')).toBe(1000);
-      
-      // 批量更新
-      stateManager.batchUpdate([
-        { path: 'user.balance', value: 2000 },
-        { path: 'user.isAdmin', value: true }
-      ]);
-      
-      expect(stateManager.getState('user.balance')).toBe(2000);
-      expect(stateManager.getState('user.isAdmin')).toBe(true);
-    });
+# 标记定义
+markers =
+    slow: marks tests as slow (deselect with '-m "not slow"')
+    integration: marks tests as integration tests
+    unit: marks tests as unit tests
+    performance: marks tests as performance tests
 
-    test('should handle state subscription', () => {
-      const { stateManager } = require('../core/store');
-      const callback = jest.fn();
-      
-      // 订阅状态变化
-      const unsubscribe = stateManager.subscribe('user.balance', callback);
-      
-      // 状态变化应该触发回调
-      stateManager.setState('user.balance', 1500);
-      expect(callback).toHaveBeenCalledWith(1500);
-      
-      // 取消订阅
-      unsubscribe();
-      stateManager.setState('user.balance', 2000);
-      expect(callback).toHaveBeenCalledTimes(1); // 不应该再次被调用
-    });
+# 测试输出配置
+console_output_style = progress
+junit_family = xunit2
 
-    test('should persist important state', () => {
-      const { stateManager } = require('../core/store');
-      
-      // 设置需要持久化的状态
-      stateManager.setState('app.darkMode', true);
-      stateManager.setState('user.openId', 'test_openid');
-      
-      // 应该调用wx.setStorageSync
-      expect(wx.setStorageSync).toHaveBeenCalledWith('dark_mode', true);
-      expect(wx.setStorageSync).toHaveBeenCalledWith('user_openid', 'test_openid');
-    });
-  });
+# 覆盖率配置
+[tool:coverage:run]
+source = server
+omit = 
+    server/tests/*
+    server/scripts/*
+    server/config/*
+    */migrations/*
+    */__pycache__/*
 
-  describe('Actions', () => {
-    test('should update user login state', () => {
-      const { actions, stateManager } = require('../core/store');
-      
-      actions.user.setLoginState('test_openid', true, 5000);
-      
-      expect(stateManager.getState('user.isLoggedIn')).toBe(true);
-      expect(stateManager.getState('user.openId')).toBe('test_openid');
-      expect(stateManager.getState('user.isAdmin')).toBe(true);
-      expect(stateManager.getState('user.balance')).toBe(5000);
-    });
+[tool:coverage:report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    class .*\bProtocol\):
+    @(abc\.)?abstractmethod
 
-    test('should toggle dark mode', () => {
-      const { actions, stateManager } = require('../core/store');
-      
-      stateManager.setState('app.darkMode', false);
-      actions.app.toggleDarkMode();
-      
-      expect(stateManager.getState('app.darkMode')).toBe(true);
-    });
-  });
-});
+show_missing = true
+precision = 2
+fail_under = 80
+```
 
-// 权限系统测试
-describe('Permission System', () => {
-  beforeEach(() => {
-    const { stateManager } = require('../core/store');
-    // 重置状态
-    stateManager.setState('user.isAdmin', false);
-    stateManager.setState('app.adminViewEnabled', false);
-  });
+**一键测试命令设置**
+```bash
+# 1. 给脚本执行权限
+chmod +x server/scripts/run_tests.sh
 
-  describe('PermissionManager', () => {
-    test('should check basic permissions', () => {
-      const { PermissionManager } = require('../core/utils/permissions');
-      
-      // 基础权限应该总是允许
-      expect(PermissionManager.hasPermission('VIEW_PROFILE')).toBe(true);
-      expect(PermissionManager.hasPermission('MANAGE_ORDERS')).toBe(true);
-    });
+# 2. 创建简化的测试命令
+echo 'alias test-backend="cd /path/to/ganghaofan && ./server/scripts/run_tests.sh"' >> ~/.bashrc
+echo 'alias test-full="cd /path/to/ganghaofan && ./server/scripts/run_tests.sh --with-performance"' >> ~/.bashrc
 
-    test('should check admin permissions', () => {
-      const { PermissionManager, stateManager } = require('../core/utils/permissions');
-      
-      // 非管理员不应该有管理员权限
-      expect(PermissionManager.hasPermission('ADMIN_MANAGE_MEALS')).toBe(false);
-      
-      // 设置为管理员并启用管理视图
-      stateManager.setState('user.isAdmin', true);
-      stateManager.setState('app.adminViewEnabled', true);
-      
-      // 现在应该有管理员权限
-      expect(PermissionManager.hasPermission('ADMIN_MANAGE_MEALS')).toBe(true);
-      expect(PermissionManager.hasAdminAccess()).toBe(true);
-    });
+# 3. 重新加载shell配置
+source ~/.bashrc
+```
 
-    test('should guard permissions correctly', () => {
-      const { PermissionManager } = require('../core/utils/permissions');
-      
-      // Mock wx.showToast
-      global.wx.showToast = jest.fn();
-      
-      // 无权限时应该显示错误
-      const result = PermissionManager.guardPermission('ADMIN_MANAGE_MEALS');
-      expect(result).toBe(false);
-      expect(wx.showToast).toHaveBeenCalledWith(
-        expect.objectContaining({ title: '您没有权限执行此操作' })
-      );
-    });
-  });
-});
+**Docker测试环境（可选）**
+```dockerfile
+# server/Dockerfile.test
+FROM python:3.11-slim
 
-// 订单状态工具测试
-describe('Order Status Helper', () => {
-  describe('OrderStatusHelper', () => {
-    test('should validate status transitions', () => {
-      const { OrderStatusHelper, OrderStatus } = require('../core/utils/orderStatus');
-      
-      // 有效的状态流转
-      expect(OrderStatusHelper.canTransition(OrderStatus.ACTIVE, OrderStatus.LOCKED)).toBe(true);
-      expect(OrderStatusHelper.canTransition(OrderStatus.LOCKED, OrderStatus.ACTIVE)).toBe(true);
-      expect(OrderStatusHelper.canTransition(OrderStatus.ACTIVE, OrderStatus.CANCELED)).toBe(true);
-      
-      // 无效的状态流转
-      expect(OrderStatusHelper.canTransition(OrderStatus.COMPLETED, OrderStatus.ACTIVE)).toBe(false);
-      expect(OrderStatusHelper.canTransition(OrderStatus.CANCELED, OrderStatus.LOCKED)).toBe(false);
-    });
+WORKDIR /app
 
-    test('should get correct status text', () => {
-      const { OrderStatusHelper, OrderStatus } = require('../core/utils/orderStatus');
-      
-      expect(OrderStatusHelper.getOrderStatusText(OrderStatus.ACTIVE, 2)).toBe('已订餐 (2份)');
-      expect(OrderStatusHelper.getOrderStatusText(OrderStatus.LOCKED, 1)).toBe('已锁定 (1份)');
-      expect(OrderStatusHelper.getOrderStatusText(OrderStatus.CANCELED)).toBe('已取消');
-    });
+# 安装测试依赖
+COPY server/requirements.txt server/requirements-test.txt ./
+RUN pip install -r requirements.txt -r requirements-test.txt
 
-    test('should determine order modifiability', () => {
-      const { OrderStatusHelper, OrderStatus, MealStatus } = require('../core/utils/orderStatus');
-      
-      // 活跃订单且餐次已发布时可修改
-      expect(OrderStatusHelper.isOrderModifiable(OrderStatus.ACTIVE, MealStatus.PUBLISHED)).toBe(true);
-      
-      // 锁定订单不可修改
-      expect(OrderStatusHelper.isOrderModifiable(OrderStatus.LOCKED, MealStatus.PUBLISHED)).toBe(false);
-      
-      // 餐次锁定时不可修改
-      expect(OrderStatusHelper.isOrderModifiable(OrderStatus.ACTIVE, MealStatus.LOCKED)).toBe(false);
-    });
-  });
-});
+# 复制源代码
+COPY server/ ./server/
+COPY server/scripts/run_tests.sh ./
+
+# 运行测试
+RUN chmod +x ./run_tests.sh
+CMD ["./run_tests.sh"]
+```
+
+**CI/CD 集成示例（GitHub Actions）**
+```yaml
+# .github/workflows/test.yml
+name: Backend Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.11, 3.12]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r server/requirements.txt
+        pip install pytest pytest-asyncio pytest-cov
+    
+    - name: Run tests
+      run: ./server/scripts/run_tests.sh
+    
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v3
+      with:
+        file: server/tests/coverage/coverage.xml
+        fail_ci_if_error: true
+```
+
+**一键完整测试命令总结**
+```bash
+# 开发环境快速测试
+./server/scripts/run_tests.sh
+
+# 完整测试（包含性能测试）
+./server/scripts/run_tests.sh --with-performance
+
+# 或者使用别名（配置后）
+test-backend     # 基础测试
+test-full        # 完整测试
 ```
 
 ### Day 5: 部署文档
