@@ -319,6 +319,8 @@ X-DB-Key: <DATABASE_KEY>
 | `BUSINESS_RULE_ERROR` | 400 | 业务规则违反 | 根据错误消息调整业务逻辑 |
 | `INSUFFICIENT_BALANCE` | 400 | 余额不足 | 充值或减少订单金额 |
 | `CAPACITY_EXCEEDED` | 400 | 餐次容量不足 | 选择其他餐次或减少数量 |
+| `ORDER_LOCKED` | 400 | 订单已锁定 | 等待管理员解锁或选择其他餐次 |
+| `INVALID_STATUS_TRANSITION` | 400 | 状态流转不合法 | 检查当前状态和目标状态 |
 | `CONCURRENCY_ERROR` | 409 | 并发冲突 | 稍后重试 |
 | `INTERNAL_ERROR` | 500 | 服务器内部错误 | 联系技术支持 |
 
@@ -430,10 +432,16 @@ X-DB-Key: <DATABASE_KEY>
 }
 ```
 
-**状态流转：**
+**餐次状态流转：**
 - `published` → `locked` → `completed`
 - `published` → `canceled`
 - `locked` → `canceled`
+
+**订单状态流转：**
+- `active` ←→ `locked` (管理员可锁定/解锁)
+- `active/locked` → `completed` (正常完成)
+- `active` → `canceled` (用户取消)
+- `active/locked` → `refunded` (餐次取消退款)
 
 ---
 
@@ -471,7 +479,6 @@ X-DB-Key: <DATABASE_KEY>
     "total_price_cents": 4600,
     "status": "active",
     "can_modify": true,
-    "modify_deadline": "2024-01-15T10:00:00Z",
     "created_at": "2024-01-14T16:30:00Z"
   }
 }
@@ -588,6 +595,63 @@ X-DB-Key: <DATABASE_KEY>
 }
 ```
 
+### GET /users/balance/history
+获取用户余额变动历史
+
+**查询参数：**
+- `limit` (int): 每页数量，默认50
+- `offset` (int): 偏移量，默认0
+
+**响应示例：**
+```json
+{
+  "success": true,
+  "data": {
+    "history": [
+      {
+        "ledger_id": 123,
+        "user_id": 456,
+        "amount_cents": -2000,
+        "description": "订单消费",
+        "related_order_id": 789,
+        "balance_after_cents": 8000,
+        "created_at": "2024-01-14T16:30:00Z"
+      }
+    ],
+    "total_count": 15,
+    "page_info": {
+      "limit": 50,
+      "offset": 0,
+      "has_more": false
+    }
+  }
+}
+```
+
+### POST /users/balance/recharge
+管理员充值用户余额
+
+**请求参数：**
+```json
+{
+  "user_id": 123,
+  "amount_cents": 10000
+}
+```
+
+**响应示例：**
+```json
+{
+  "success": true,
+  "data": {
+    "user_id": 123,
+    "old_balance_cents": 5000,
+    "new_balance_cents": 15000,
+    "recharge_amount_cents": 10000
+  }
+}
+```
+
 ---
 
 ## 管理员专用接口
@@ -614,6 +678,59 @@ X-DB-Key: <DATABASE_KEY>
 - `complete`: 完成订单
 - `cancel`: 取消订单
 - `refund`: 退款订单
+
+### POST /orders/lock-by-meal
+锁定餐次的所有订单（管理员）
+
+**请求参数：**
+```json
+{
+  "meal_id": 123
+}
+```
+
+**响应示例：**
+```json
+{
+  "success": true,
+  "data": {
+    "meal_id": 123,
+    "locked_orders": 15,
+    "status": "locked"
+  }
+}
+```
+
+### POST /orders/unlock-by-meal
+解锁餐次的所有订单（管理员）
+
+**请求参数：**
+```json
+{
+  "meal_id": 123
+}
+```
+
+### POST /orders/complete-by-meal
+完成餐次的所有订单（管理员）
+
+**请求参数：**
+```json
+{
+  "meal_id": 123
+}
+```
+
+### POST /orders/refund-by-meal
+退款餐次的所有订单（管理员）
+
+**请求参数：**
+```json
+{
+  "meal_id": 123,
+  "reason": "餐次取消，全额退款"
+}
+```
 
 ---
 
@@ -1123,6 +1240,95 @@ class TestOrderService:
         # 验证结果：只有一个成功，一个失败
         success_count = sum(1 for result in results.values() if result["success"])
         assert success_count == 1, f"Expected 1 success, got {success_count}. Results: {results}"
+    
+    def test_order_status_transitions(self, test_db, sample_user, sample_meal, admin_user):
+        """测试订单状态流转"""
+        order_service = OrderService()
+        
+        # 创建订单
+        order_data = OrderCreate(
+            meal_id=sample_meal["meal_id"],
+            quantity=1,
+            selected_options=[],
+            total_price_cents=2000
+        )
+        order = order_service.create_order(order_data, sample_user["user_id"])
+        assert order.status == "active"
+        
+        # 测试锁定订单
+        result = order_service.lock_orders_by_meal(
+            sample_meal["meal_id"], 
+            admin_user["openid"]
+        )
+        assert result["locked_orders"] == 1
+        
+        # 验证订单状态已变为locked
+        with test_db.connection as conn:
+            order_status = conn.execute(
+                "SELECT status FROM orders WHERE order_id = ?", 
+                [order.order_id]
+            ).fetchone()["status"]
+            assert order_status == "locked"
+        
+        # 测试解锁订单
+        result = order_service.unlock_orders_by_meal(
+            sample_meal["meal_id"], 
+            admin_user["openid"]
+        )
+        assert result["unlocked_orders"] == 1
+        
+        # 验证订单状态已变回active
+        with test_db.connection as conn:
+            order_status = conn.execute(
+                "SELECT status FROM orders WHERE order_id = ?", 
+                [order.order_id]
+            ).fetchone()["status"]
+            assert order_status == "active"
+    
+    def test_order_refund_by_meal(self, test_db, sample_user, sample_meal, admin_user):
+        """测试餐次取消时的订单退款"""
+        order_service = OrderService()
+        
+        # 创建订单
+        order_data = OrderCreate(
+            meal_id=sample_meal["meal_id"],
+            quantity=1,
+            selected_options=[],
+            total_price_cents=2000
+        )
+        order = order_service.create_order(order_data, sample_user["user_id"])
+        
+        # 记录用户当前余额
+        with test_db.connection as conn:
+            old_balance = conn.execute(
+                "SELECT balance_cents FROM users WHERE user_id = ?", 
+                [sample_user["user_id"]]
+            ).fetchone()["balance_cents"]
+        
+        # 餐次取消，退款所有订单
+        result = order_service.refund_orders_by_meal(
+            sample_meal["meal_id"], 
+            admin_user["openid"], 
+            "测试餐次取消"
+        )
+        
+        assert result["refunded_orders"] == 1
+        assert result["total_refund_amount_cents"] == 2000
+        
+        # 验证订单状态为refunded
+        with test_db.connection as conn:
+            order_status = conn.execute(
+                "SELECT status FROM orders WHERE order_id = ?", 
+                [order.order_id]
+            ).fetchone()["status"]
+            assert order_status == "refunded"
+            
+            # 验证余额已恢复
+            new_balance = conn.execute(
+                "SELECT balance_cents FROM users WHERE user_id = ?", 
+                [sample_user["user_id"]]
+            ).fetchone()["balance_cents"]
+            assert new_balance == old_balance + 2000
 ```
 
 ##### 3. API集成测试
@@ -1406,6 +1612,176 @@ describe('API Client', () => {
 
       expect(callCount).toBe(3); // 2次重试 + 1次成功
       expect(result.success).toBe(true);
+    });
+  });
+});
+
+// 状态管理测试
+describe('State Management', () => {
+  beforeEach(() => {
+    // Mock wx存储API
+    global.wx = {
+      getStorageSync: jest.fn(),
+      setStorageSync: jest.fn(),
+      removeStorageSync: jest.fn()
+    };
+  });
+
+  describe('StateManager', () => {
+    test('should manage state correctly', () => {
+      const { stateManager } = require('../core/store');
+      
+      // 设置状态
+      stateManager.setState('user.balance', 1000);
+      expect(stateManager.getState('user.balance')).toBe(1000);
+      
+      // 批量更新
+      stateManager.batchUpdate([
+        { path: 'user.balance', value: 2000 },
+        { path: 'user.isAdmin', value: true }
+      ]);
+      
+      expect(stateManager.getState('user.balance')).toBe(2000);
+      expect(stateManager.getState('user.isAdmin')).toBe(true);
+    });
+
+    test('should handle state subscription', () => {
+      const { stateManager } = require('../core/store');
+      const callback = jest.fn();
+      
+      // 订阅状态变化
+      const unsubscribe = stateManager.subscribe('user.balance', callback);
+      
+      // 状态变化应该触发回调
+      stateManager.setState('user.balance', 1500);
+      expect(callback).toHaveBeenCalledWith(1500);
+      
+      // 取消订阅
+      unsubscribe();
+      stateManager.setState('user.balance', 2000);
+      expect(callback).toHaveBeenCalledTimes(1); // 不应该再次被调用
+    });
+
+    test('should persist important state', () => {
+      const { stateManager } = require('../core/store');
+      
+      // 设置需要持久化的状态
+      stateManager.setState('app.darkMode', true);
+      stateManager.setState('user.openId', 'test_openid');
+      
+      // 应该调用wx.setStorageSync
+      expect(wx.setStorageSync).toHaveBeenCalledWith('dark_mode', true);
+      expect(wx.setStorageSync).toHaveBeenCalledWith('user_openid', 'test_openid');
+    });
+  });
+
+  describe('Actions', () => {
+    test('should update user login state', () => {
+      const { actions, stateManager } = require('../core/store');
+      
+      actions.user.setLoginState('test_openid', true, 5000);
+      
+      expect(stateManager.getState('user.isLoggedIn')).toBe(true);
+      expect(stateManager.getState('user.openId')).toBe('test_openid');
+      expect(stateManager.getState('user.isAdmin')).toBe(true);
+      expect(stateManager.getState('user.balance')).toBe(5000);
+    });
+
+    test('should toggle dark mode', () => {
+      const { actions, stateManager } = require('../core/store');
+      
+      stateManager.setState('app.darkMode', false);
+      actions.app.toggleDarkMode();
+      
+      expect(stateManager.getState('app.darkMode')).toBe(true);
+    });
+  });
+});
+
+// 权限系统测试
+describe('Permission System', () => {
+  beforeEach(() => {
+    const { stateManager } = require('../core/store');
+    // 重置状态
+    stateManager.setState('user.isAdmin', false);
+    stateManager.setState('app.adminViewEnabled', false);
+  });
+
+  describe('PermissionManager', () => {
+    test('should check basic permissions', () => {
+      const { PermissionManager } = require('../core/utils/permissions');
+      
+      // 基础权限应该总是允许
+      expect(PermissionManager.hasPermission('VIEW_PROFILE')).toBe(true);
+      expect(PermissionManager.hasPermission('MANAGE_ORDERS')).toBe(true);
+    });
+
+    test('should check admin permissions', () => {
+      const { PermissionManager, stateManager } = require('../core/utils/permissions');
+      
+      // 非管理员不应该有管理员权限
+      expect(PermissionManager.hasPermission('ADMIN_MANAGE_MEALS')).toBe(false);
+      
+      // 设置为管理员并启用管理视图
+      stateManager.setState('user.isAdmin', true);
+      stateManager.setState('app.adminViewEnabled', true);
+      
+      // 现在应该有管理员权限
+      expect(PermissionManager.hasPermission('ADMIN_MANAGE_MEALS')).toBe(true);
+      expect(PermissionManager.hasAdminAccess()).toBe(true);
+    });
+
+    test('should guard permissions correctly', () => {
+      const { PermissionManager } = require('../core/utils/permissions');
+      
+      // Mock wx.showToast
+      global.wx.showToast = jest.fn();
+      
+      // 无权限时应该显示错误
+      const result = PermissionManager.guardPermission('ADMIN_MANAGE_MEALS');
+      expect(result).toBe(false);
+      expect(wx.showToast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: '您没有权限执行此操作' })
+      );
+    });
+  });
+});
+
+// 订单状态工具测试
+describe('Order Status Helper', () => {
+  describe('OrderStatusHelper', () => {
+    test('should validate status transitions', () => {
+      const { OrderStatusHelper, OrderStatus } = require('../core/utils/orderStatus');
+      
+      // 有效的状态流转
+      expect(OrderStatusHelper.canTransition(OrderStatus.ACTIVE, OrderStatus.LOCKED)).toBe(true);
+      expect(OrderStatusHelper.canTransition(OrderStatus.LOCKED, OrderStatus.ACTIVE)).toBe(true);
+      expect(OrderStatusHelper.canTransition(OrderStatus.ACTIVE, OrderStatus.CANCELED)).toBe(true);
+      
+      // 无效的状态流转
+      expect(OrderStatusHelper.canTransition(OrderStatus.COMPLETED, OrderStatus.ACTIVE)).toBe(false);
+      expect(OrderStatusHelper.canTransition(OrderStatus.CANCELED, OrderStatus.LOCKED)).toBe(false);
+    });
+
+    test('should get correct status text', () => {
+      const { OrderStatusHelper, OrderStatus } = require('../core/utils/orderStatus');
+      
+      expect(OrderStatusHelper.getOrderStatusText(OrderStatus.ACTIVE, 2)).toBe('已订餐 (2份)');
+      expect(OrderStatusHelper.getOrderStatusText(OrderStatus.LOCKED, 1)).toBe('已锁定 (1份)');
+      expect(OrderStatusHelper.getOrderStatusText(OrderStatus.CANCELED)).toBe('已取消');
+    });
+
+    test('should determine order modifiability', () => {
+      const { OrderStatusHelper, OrderStatus, MealStatus } = require('../core/utils/orderStatus');
+      
+      // 活跃订单且餐次已发布时可修改
+      expect(OrderStatusHelper.isOrderModifiable(OrderStatus.ACTIVE, MealStatus.PUBLISHED)).toBe(true);
+      
+      // 锁定订单不可修改
+      expect(OrderStatusHelper.isOrderModifiable(OrderStatus.LOCKED, MealStatus.PUBLISHED)).toBe(false);
+      
+      // 餐次锁定时不可修改
+      expect(OrderStatusHelper.isOrderModifiable(OrderStatus.ACTIVE, MealStatus.LOCKED)).toBe(false);
     });
   });
 });
