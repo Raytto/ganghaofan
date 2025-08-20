@@ -6,8 +6,11 @@
 import duckdb
 from pathlib import Path
 import json
-from typing import Optional
+from typing import Optional, Generator
+from contextlib import contextmanager
+import threading
 from .exceptions import DatabaseError
+from ..config.settings import settings
 
 # 数据文件存储目录
 DATA_DIR = Path(__file__).parent.parent / "data"
@@ -102,6 +105,15 @@ class DatabaseManager:
     
     def __init__(self):
         self._connection: Optional[duckdb.DuckDBPyConnection] = None
+        self._lock = threading.RLock()
+        self.db_path = self._get_db_path_from_settings()
+    
+    def _get_db_path_from_settings(self) -> str:
+        """从设置中获取数据库路径"""
+        db_url = settings.database_url
+        if db_url.startswith("duckdb://"):
+            return db_url.replace("duckdb://", "")
+        return db_url
     
     def _load_db_config_path(self) -> Path:
         """从配置文件读取数据库路径"""
@@ -121,29 +133,61 @@ class DatabaseManager:
         # 默认路径
         return (DATA_DIR / "ganghaofan.duckdb").resolve()
     
-    def get_connection(self) -> duckdb.DuckDBPyConnection:
+    @property
+    def connection(self) -> duckdb.DuckDBPyConnection:
         """获取数据库连接"""
-        if self._connection is not None:
-            return self._connection
-        
+        if self._connection is None:
+            self._connection = duckdb.connect(self.db_path)
+            self._init_schema()
+        return self._connection
+    
+    def get_connection(self) -> duckdb.DuckDBPyConnection:
+        """获取数据库连接 - 保持向后兼容"""
+        return self.connection
+    
+    def _init_schema(self):
+        """初始化数据库表结构"""
         try:
-            db_path = self._load_db_config_path()
-            con = duckdb.connect(str(db_path))
-            
             # 安装和加载JSON扩展
             try:
-                con.execute("INSTALL json")
-                con.execute("LOAD json")
+                self._connection.execute("INSTALL json")
+                self._connection.execute("LOAD json")
             except Exception:
                 pass  # JSON扩展可能已经安装
             
             # 创建表结构
-            con.execute(SCHEMA_SQL)
-            self._connection = con
-            return con
+            self._connection.execute(SCHEMA_SQL)
             
         except Exception as e:
-            raise DatabaseError(f"Failed to connect to database: {e}")
+            raise DatabaseError(f"Failed to initialize schema: {e}")
+    
+    @contextmanager
+    def transaction(self, isolation_level: str = "SERIALIZABLE") -> Generator[duckdb.DuckDBPyConnection, None, None]:
+        """
+        数据库事务上下文管理器（简化版并发控制）
+        
+        Args:
+            isolation_level: 事务隔离级别，支持 READ_COMMITTED, SERIALIZABLE
+        """
+        with self._lock:
+            conn = self.connection
+            try:
+                # 设置事务隔离级别
+                conn.execute(f"SET TRANSACTION ISOLATION LEVEL {isolation_level}")
+                conn.execute("BEGIN")
+                yield conn
+                conn.execute("COMMIT")
+            except Exception as e:
+                try:
+                    conn.execute("ROLLBACK")
+                except:
+                    pass  # 忽略回滚错误
+                
+                # 简化并发冲突处理：不自动重试，直接返回错误
+                if "conflict" in str(e).lower() or "serialization" in str(e).lower():
+                    from .exceptions import ConcurrencyError
+                    raise ConcurrencyError(f"系统繁忙，请稍后重试")
+                raise DatabaseError(f"数据库操作失败: {str(e)}")
     
     def init_database(self):
         """初始化数据库"""

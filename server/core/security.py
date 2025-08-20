@@ -11,6 +11,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from ..config import get_passphrase_map
 from .exceptions import AuthenticationError, AuthorizationError
+from .database import db_manager
 
 # JWT配置
 JWT_SECRET = "your-secret-key-here"  # 在生产环境中应该从环境变量读取
@@ -105,3 +106,42 @@ def create_access_token(open_id: str) -> str:
 def verify_token(token: str) -> str:
     """验证token并返回open_id（向后兼容）"""
     return security_manager.get_open_id_from_token(token)
+
+
+async def get_current_user_id(open_id: str = Depends(get_open_id)) -> int:
+    """获取当前用户ID"""
+    try:
+        with db_manager.connection as conn:
+            user_row = conn.execute(
+                "SELECT id FROM users WHERE open_id = ?", 
+                [open_id]
+            ).fetchone()
+            
+            if not user_row:
+                # 如果用户不存在，自动创建
+                conn.execute("INSERT INTO users (open_id) VALUES (?)", [open_id])
+                user_row = conn.execute(
+                    "SELECT id FROM users WHERE open_id = ?", 
+                    [open_id]
+                ).fetchone()
+            
+            if not user_row:
+                raise HTTPException(status_code=500, detail="用户创建失败")
+            
+            return user_row["id"]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取用户ID失败: {str(e)}")
+
+
+async def check_admin_permission(current_user_id: int = Depends(get_current_user_id)) -> bool:
+    """检查管理员权限"""
+    try:
+        with db_manager.connection as conn:
+            user_row = conn.execute(
+                "SELECT is_admin FROM users WHERE id = ?", 
+                [current_user_id]
+            ).fetchone()
+            
+            return user_row and user_row["is_admin"]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"权限检查失败: {str(e)}")

@@ -9,7 +9,8 @@ import type { BaseResponse } from '../../types'
 export interface RequestOptions extends Partial<WechatMiniprogram.RequestOption> {
   showLoading?: boolean
   showError?: boolean
-  retries?: number
+  cache?: boolean
+  cacheDuration?: number
 }
 
 export interface ApiError {
@@ -24,12 +25,11 @@ export interface ApiError {
 export class HttpClient {
   private baseURL: string
   private timeout: number
-  private maxRetries: number
+  private cache: Map<string, { data: any; expires: number }> = new Map()
 
   constructor() {
     this.baseURL = API_CONFIG.BASE_URL
     this.timeout = API_CONFIG.TIMEOUT
-    this.maxRetries = API_CONFIG.MAX_RETRIES
   }
 
   /**
@@ -92,7 +92,53 @@ export class HttpClient {
   }
 
   /**
-   * 执行HTTP请求
+   * 生成缓存键
+   */
+  private getCacheKey(url: string, method: string, data?: any): string {
+    const dataString = data ? JSON.stringify(data) : ''
+    return `${method}_${url}_${dataString}`
+  }
+
+  /**
+   * 从缓存获取数据
+   */
+  private getFromCache(key: string): any {
+    const cached = this.cache.get(key)
+    if (cached && cached.expires > Date.now()) {
+      return cached.data
+    }
+    this.cache.delete(key)
+    return null
+  }
+
+  /**
+   * 设置缓存
+   */
+  private setToCache(key: string, data: any, duration: number = 5 * 60 * 1000) {
+    this.cache.set(key, {
+      data,
+      expires: Date.now() + duration
+    })
+  }
+
+  /**
+   * 清除缓存
+   */
+  clearCache() {
+    this.cache.clear()
+  }
+
+  /**
+   * 清除特定URL的缓存
+   */
+  clearCacheByUrl(url: string) {
+    const keysToDelete = Array.from(this.cache.keys()).filter(key => key.includes(url))
+    keysToDelete.forEach(key => this.cache.delete(key))
+  }
+
+
+  /**
+   * 执行HTTP请求（简化版，无重试机制）
    */
   private async executeRequest<T = any>(
     url: string, 
@@ -101,9 +147,21 @@ export class HttpClient {
     const {
       showLoading = false,
       showError = true,
-      retries = 0,
+      cache = false,
+      cacheDuration = 5 * 60 * 1000, // 5分钟默认缓存
       ...requestOptions
     } = options
+
+    const method = requestOptions.method || 'GET'
+    const cacheKey = cache ? this.getCacheKey(url, method, requestOptions.data) : ''
+
+    // 检查缓存（仅对GET请求且启用缓存时）
+    if (cache && method === 'GET') {
+      const cachedData = this.getFromCache(cacheKey)
+      if (cachedData) {
+        return cachedData as T
+      }
+    }
 
     if (showLoading) {
       wx.showLoading({ title: '加载中...', mask: true })
@@ -127,6 +185,11 @@ export class HttpClient {
       const { statusCode, data } = response
 
       if (statusCode >= 200 && statusCode < 300) {
+        // 缓存成功的GET请求结果
+        if (cache && method === 'GET') {
+          this.setToCache(cacheKey, data, cacheDuration)
+        }
+        
         return data as T
       }
 
@@ -140,12 +203,8 @@ export class HttpClient {
       throw error
 
     } catch (error: any) {
-      // 网络错误重试
-      if (retries < this.maxRetries && this.shouldRetry(error)) {
-        console.log(`Request failed, retrying... (${retries + 1}/${this.maxRetries})`)
-        return this.executeRequest(url, { ...options, retries: retries + 1 })
-      }
-
+      console.error('API请求失败:', error)
+      
       if (showError) {
         this.handleError(error)
       }
@@ -159,46 +218,33 @@ export class HttpClient {
     }
   }
 
-  /**
-   * 判断是否应该重试
-   */
-  private shouldRetry(error: any): boolean {
-    // 网络错误重试
-    if (error.code === -1 || error.errMsg?.includes('fail')) {
-      return true
-    }
-
-    // 服务器错误重试
-    if (error.code >= 500) {
-      return true
-    }
-
-    return false
-  }
 
   /**
-   * 处理错误
+   * 处理错误（简化版）
    */
   private handleError(error: any) {
-    let message = '请求失败'
+    let message = '操作失败'
 
-    if (error.code === -1) {
+    if (error?.errMsg?.includes('timeout')) {
+      message = '请求超时，请检查网络连接'
+    } else if (error?.errMsg?.includes('fail')) {
       message = '网络连接失败'
     } else if (error.code === HTTP_STATUS.UNAUTHORIZED) {
       message = '登录已过期，请重新登录'
-      // 可以在这里触发重新登录
     } else if (error.code === HTTP_STATUS.FORBIDDEN) {
       message = '访问被拒绝'
     } else if (error.code === HTTP_STATUS.NOT_FOUND) {
       message = '请求的资源不存在'
+    } else if (error.code >= 500) {
+      message = '服务器错误，请稍后重试'
     } else if (error.message) {
       message = error.message
     }
 
     wx.showToast({
       title: message,
-      icon: 'none',
-      duration: 2000
+      icon: 'error',
+      duration: 3000
     })
   }
 
@@ -207,6 +253,7 @@ export class HttpClient {
    */
   async get<T = any>(url: string, options: RequestOptions = {}): Promise<T> {
     return this.executeRequest<T>(url, {
+      cache: true, // GET请求默认启用缓存
       ...options,
       method: 'GET'
     })
@@ -216,43 +263,63 @@ export class HttpClient {
    * POST请求
    */
   async post<T = any>(url: string, data?: any, options: RequestOptions = {}): Promise<T> {
-    return this.executeRequest<T>(url, {
+    const result = await this.executeRequest<T>(url, {
       ...options,
       method: 'POST',
       data
     })
+    
+    // POST操作可能影响相关数据，清理相关缓存
+    this.clearCacheByUrl(url)
+    
+    return result
   }
 
   /**
    * PUT请求
    */
   async put<T = any>(url: string, data?: any, options: RequestOptions = {}): Promise<T> {
-    return this.executeRequest<T>(url, {
+    const result = await this.executeRequest<T>(url, {
       ...options,
       method: 'PUT',
       data
     })
+    
+    // PUT操作会修改数据，清理相关缓存
+    this.clearCacheByUrl(url)
+    
+    return result
   }
 
   /**
    * PATCH请求
    */
   async patch<T = any>(url: string, data?: any, options: RequestOptions = {}): Promise<T> {
-    return this.executeRequest<T>(url, {
+    const result = await this.executeRequest<T>(url, {
       ...options,
       method: 'PATCH',
       data
     })
+    
+    // PATCH操作会修改数据，清理相关缓存
+    this.clearCacheByUrl(url)
+    
+    return result
   }
 
   /**
    * DELETE请求
    */
   async delete<T = any>(url: string, options: RequestOptions = {}): Promise<T> {
-    return this.executeRequest<T>(url, {
+    const result = await this.executeRequest<T>(url, {
       ...options,
       method: 'DELETE'
     })
+    
+    // DELETE操作会删除数据，清理相关缓存
+    this.clearCacheByUrl(url)
+    
+    return result
   }
 }
 

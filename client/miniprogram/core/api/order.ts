@@ -8,7 +8,8 @@
  * - 与后端API的一对一映射
  */
 
-import { request } from './base'
+import { httpClient } from './base'
+import { API_ENDPOINTS } from '../constants'
 
 /**
  * 订单创建请求参数
@@ -81,9 +82,14 @@ export class OrderApi {
    * @throws OrderApiError 当业务逻辑错误时
    */
   static async createOrder(params: CreateOrderRequest): Promise<OrderResponse> {
-    return request<OrderResponse>('/orders', {
-      method: 'POST',
-      data: params
+    return httpClient.post<OrderResponse>(API_ENDPOINTS.ORDER_CREATE, params, {
+      retryConfig: {
+        maxAttempts: 2, // 订单创建重试次数少，避免重复下单
+        baseDelay: 1000,
+        maxDelay: 3000,
+        backoffFactor: 2,
+        retryableErrors: ['timeout', 'NETWORK_ERROR'] // 不重试业务错误
+      }
     })
   }
 
@@ -97,9 +103,14 @@ export class OrderApi {
    * @throws OrderApiError 当业务逻辑错误时
    */
   static async updateOrder(orderId: number, params: UpdateOrderRequest): Promise<OrderResponse> {
-    return request<OrderResponse>(`/orders/${orderId}`, {
-      method: 'PATCH',
-      data: params
+    return httpClient.patch<OrderResponse>(API_ENDPOINTS.ORDER_UPDATE(orderId), params, {
+      retryConfig: {
+        maxAttempts: 2,
+        baseDelay: 1000,
+        maxDelay: 3000,
+        backoffFactor: 2,
+        retryableErrors: ['timeout', 'NETWORK_ERROR']
+      }
     })
   }
 
@@ -112,8 +123,14 @@ export class OrderApi {
    * @throws OrderApiError 当业务逻辑错误时
    */
   static async cancelOrder(orderId: number): Promise<CancelOrderResponse> {
-    return request<CancelOrderResponse>(`/orders/${orderId}`, {
-      method: 'DELETE'
+    return httpClient.delete<CancelOrderResponse>(API_ENDPOINTS.ORDER_CANCEL(orderId), {
+      retryConfig: {
+        maxAttempts: 2,
+        baseDelay: 1000,
+        maxDelay: 3000,
+        backoffFactor: 2,
+        retryableErrors: ['timeout', 'NETWORK_ERROR']
+      }
     })
   }
 }

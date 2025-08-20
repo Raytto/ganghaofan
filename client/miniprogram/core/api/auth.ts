@@ -20,7 +20,16 @@ export class AuthAPI {
     const response = await httpClient.post<LoginResponse>(
       API_ENDPOINTS.LOGIN, 
       request,
-      { showLoading: true }
+      { 
+        showLoading: true,
+        retryConfig: {
+          maxAttempts: 3, // 登录重试次数稍多
+          baseDelay: 1000,
+          maxDelay: 5000,
+          backoffFactor: 2,
+          retryableErrors: ['timeout', 'fail', 'NETWORK_ERROR']
+        }
+      }
     )
     
     // 自动保存token
@@ -66,7 +75,16 @@ export class AuthAPI {
     const request: PassphraseRequest = { passphrase }
     return httpClient.post<PassphraseResponse>(
       API_ENDPOINTS.RESOLVE_PASSPHRASE, 
-      request
+      request,
+      {
+        retryConfig: {
+          maxAttempts: 2,
+          baseDelay: 1000,
+          maxDelay: 3000,
+          backoffFactor: 2,
+          retryableErrors: ['timeout', 'fail', 'NETWORK_ERROR']
+        }
+      }
     )
   }
 

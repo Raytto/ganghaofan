@@ -18,7 +18,17 @@ export class MealAPI {
   async getCalendar(month: string): Promise<MealCalendarResponse> {
     return httpClient.get<MealCalendarResponse>(
       `${API_ENDPOINTS.CALENDAR}?month=${month}`,
-      { showLoading: true }
+      { 
+        showLoading: true,
+        cacheDuration: 2 * 60 * 1000, // 2分钟缓存
+        retryConfig: {
+          maxAttempts: 2,
+          baseDelay: 500,
+          maxDelay: 2000,
+          backoffFactor: 2,
+          retryableErrors: ['timeout', 'fail', 'NETWORK_ERROR']
+        }
+      }
     )
   }
 
@@ -28,7 +38,17 @@ export class MealAPI {
   async getCalendarBatch(months: string[]): Promise<MealBatchCalendarResponse> {
     const monthsParam = encodeURIComponent(months.join(','))
     return httpClient.get<MealBatchCalendarResponse>(
-      `${API_ENDPOINTS.CALENDAR_BATCH}?months=${monthsParam}`
+      `${API_ENDPOINTS.CALENDAR_BATCH}?months=${monthsParam}`,
+      {
+        cacheDuration: 5 * 60 * 1000, // 5分钟缓存
+        retryConfig: {
+          maxAttempts: 3,
+          baseDelay: 1000,
+          maxDelay: 5000,
+          backoffFactor: 2,
+          retryableErrors: ['timeout', 'fail', 'NETWORK_ERROR']
+        }
+      }
     )
   }
 
@@ -38,7 +58,17 @@ export class MealAPI {
   async getMealDetail(mealId: number): Promise<Meal> {
     return httpClient.get<Meal>(
       API_ENDPOINTS.MEAL_DETAIL(mealId),
-      { showLoading: true }
+      { 
+        showLoading: true,
+        cacheDuration: 10 * 60 * 1000, // 10分钟缓存，餐次详情相对稳定
+        retryConfig: {
+          maxAttempts: 2,
+          baseDelay: 500,
+          maxDelay: 2000,
+          backoffFactor: 2,
+          retryableErrors: ['timeout', 'fail', 'NETWORK_ERROR']
+        }
+      }
     )
   }
 

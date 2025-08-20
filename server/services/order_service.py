@@ -130,6 +130,11 @@ class OrderService:
         # 获取用户余额
         balance_before = self._get_user_balance(con, user_id)
         
+        # 检查余额（仅警告，不阻止下单）
+        if balance_before < amount_cents:
+            # 记录负余额警告日志，但允许继续下单
+            self._log_negative_balance_warning(con, user_id, balance_before, amount_cents)
+        
         # 执行事务
         return self._execute_create_order_transaction(
             con, user_id, meal_id, qty, selected_options, amount_cents,
@@ -163,9 +168,9 @@ class OrderService:
         
         user_id, meal_id, status = order_info
         
-        # 验证餐次状态
+        # 验证餐次状态（简化：只要管理员没有锁定且餐次没结束即可修改）
         meal_status = self._get_meal_status(con, meal_id)
-        if meal_status != 'published':
+        if meal_status not in ['published']:
             raise MealLockedError()
         
         # 取消旧订单
@@ -505,6 +510,242 @@ class OrderService:
             "INSERT INTO logs(user_id, actor_id, action, detail_json) VALUES (?,?,?,?)",
             [user_id, user_id, "order_cancel", json.dumps(log_detail)],
         )
+    
+    def _log_negative_balance_warning(self, con, user_id: int, current_balance: int, order_amount: int):
+        """记录负余额警告日志"""
+        log_detail = {
+            "current_balance_cents": current_balance,
+            "order_amount_cents": order_amount,
+            "deficit_cents": order_amount - current_balance,
+            "warning": "用户余额不足，允许负余额下单（面向熟人内部系统）"
+        }
+        
+        con.execute(
+            "INSERT INTO logs(user_id, actor_id, action, detail_json) VALUES (?,?,?,?)",
+            [user_id, None, "negative_balance_warning", json.dumps(log_detail)],
+        )
+    
+    def lock_orders_by_meal(self, meal_id: int, admin_open_id: str) -> Dict[str, Any]:
+        """
+        锁定餐次的所有订单
+        
+        Args:
+            meal_id: 餐次ID
+            admin_open_id: 管理员openid
+            
+        Returns:
+            dict: 锁定操作结果
+        """
+        with self.db.connection as con:
+            # 检查管理员权限
+            admin_row = con.execute("SELECT id, is_admin FROM users WHERE open_id = ?", [admin_open_id]).fetchone()
+            if not admin_row or not admin_row[1]:
+                raise OrderServiceError("PERMISSION_DENIED", "需要管理员权限")
+            
+            # 获取餐次信息
+            meal_row = con.execute("SELECT meal_id, status FROM meals WHERE meal_id = ?", [meal_id]).fetchone()
+            if not meal_row:
+                raise MealNotFoundError()
+            
+            # 将该餐次的所有活跃订单状态更新为locked
+            from datetime import datetime
+            updated_count = con.execute(
+                "UPDATE orders SET status = 'locked', locked_at = ? WHERE meal_id = ? AND status = 'active'",
+                [datetime.now().isoformat(), meal_id]
+            ).rowcount
+            
+            # 记录操作日志
+            log_detail = {
+                "meal_id": meal_id,
+                "updated_orders": updated_count,
+                "admin_id": admin_row[0]
+            }
+            
+            con.execute(
+                "INSERT INTO logs(user_id, actor_id, action, detail_json) VALUES (?,?,?,?)",
+                [None, admin_row[0], "lock_orders", json.dumps(log_detail)]
+            )
+            
+            return {
+                "meal_id": meal_id,
+                "locked_orders": updated_count,
+                "status": "locked"
+            }
+    
+    def unlock_orders_by_meal(self, meal_id: int, admin_open_id: str) -> Dict[str, Any]:
+        """
+        解锁餐次的所有订单
+        
+        Args:
+            meal_id: 餐次ID
+            admin_open_id: 管理员openid
+            
+        Returns:
+            dict: 解锁操作结果
+        """
+        with self.db.connection as con:
+            # 检查管理员权限
+            admin_row = con.execute("SELECT id, is_admin FROM users WHERE open_id = ?", [admin_open_id]).fetchone()
+            if not admin_row or not admin_row[1]:
+                raise OrderServiceError("PERMISSION_DENIED", "需要管理员权限")
+            
+            # 获取餐次信息
+            meal_row = con.execute("SELECT meal_id, status FROM meals WHERE meal_id = ?", [meal_id]).fetchone()
+            if not meal_row:
+                raise MealNotFoundError()
+            
+            # 将该餐次的所有锁定订单状态更新为active
+            updated_count = con.execute(
+                "UPDATE orders SET status = 'active', locked_at = NULL WHERE meal_id = ? AND status = 'locked'",
+                [meal_id]
+            ).rowcount
+            
+            # 记录操作日志
+            log_detail = {
+                "meal_id": meal_id,
+                "updated_orders": updated_count,
+                "admin_id": admin_row[0]
+            }
+            
+            con.execute(
+                "INSERT INTO logs(user_id, actor_id, action, detail_json) VALUES (?,?,?,?)",
+                [None, admin_row[0], "unlock_orders", json.dumps(log_detail)]
+            )
+            
+            return {
+                "meal_id": meal_id,
+                "unlocked_orders": updated_count,
+                "status": "active"
+            }
+    
+    def complete_orders_by_meal(self, meal_id: int, admin_open_id: str) -> Dict[str, Any]:
+        """
+        完成餐次的所有订单
+        
+        Args:
+            meal_id: 餐次ID
+            admin_open_id: 管理员openid
+            
+        Returns:
+            dict: 完成操作结果
+        """
+        with self.db.connection as con:
+            # 检查管理员权限
+            admin_row = con.execute("SELECT id, is_admin FROM users WHERE open_id = ?", [admin_open_id]).fetchone()
+            if not admin_row or not admin_row[1]:
+                raise OrderServiceError("PERMISSION_DENIED", "需要管理员权限")
+            
+            # 获取餐次信息
+            meal_row = con.execute("SELECT meal_id, status FROM meals WHERE meal_id = ?", [meal_id]).fetchone()
+            if not meal_row:
+                raise MealNotFoundError()
+            
+            # 将该餐次的所有active/locked订单状态更新为completed
+            updated_count = con.execute(
+                "UPDATE orders SET status = 'completed' WHERE meal_id = ? AND status IN ('active', 'locked')",
+                [meal_id]
+            ).rowcount
+            
+            # 记录操作日志
+            log_detail = {
+                "meal_id": meal_id,
+                "completed_orders": updated_count,
+                "admin_id": admin_row[0]
+            }
+            
+            con.execute(
+                "INSERT INTO logs(user_id, actor_id, action, detail_json) VALUES (?,?,?,?)",
+                [None, admin_row[0], "complete_orders", json.dumps(log_detail)]
+            )
+            
+            return {
+                "meal_id": meal_id,
+                "completed_orders": updated_count,
+                "status": "completed"
+            }
+    
+    def refund_orders_by_meal(self, meal_id: int, admin_open_id: str, reason: str = "") -> Dict[str, Any]:
+        """
+        退款餐次的所有订单（餐次取消时使用）
+        
+        Args:
+            meal_id: 餐次ID
+            admin_open_id: 管理员openid
+            reason: 退款原因
+            
+        Returns:
+            dict: 退款操作结果
+        """
+        with self.db.connection as con:
+            # 检查管理员权限
+            admin_row = con.execute("SELECT id, is_admin FROM users WHERE open_id = ?", [admin_open_id]).fetchone()
+            if not admin_row or not admin_row[1]:
+                raise OrderServiceError("PERMISSION_DENIED", "需要管理员权限")
+            
+            # 获取餐次信息
+            meal_row = con.execute("SELECT meal_id, status FROM meals WHERE meal_id = ?", [meal_id]).fetchone()
+            if not meal_row:
+                raise MealNotFoundError()
+            
+            # 获取所有需要退款的订单
+            orders_to_refund = con.execute(
+                "SELECT order_id, user_id, amount_cents FROM orders WHERE meal_id = ? AND status IN ('active', 'locked')",
+                [meal_id]
+            ).fetchall()
+            
+            total_refund_amount = 0
+            refunded_orders = []
+            
+            # 逐个处理退款
+            for order_row in orders_to_refund:
+                order_id, user_id, amount_cents = order_row
+                
+                # 更新订单状态
+                con.execute(
+                    "UPDATE orders SET status = 'refunded' WHERE order_id = ?",
+                    [order_id]
+                )
+                
+                # 退款到用户余额
+                con.execute(
+                    "UPDATE users SET balance_cents = balance_cents + ? WHERE id = ?",
+                    [amount_cents, user_id]
+                )
+                
+                # 记录账单
+                con.execute(
+                    "INSERT INTO ledger(user_id, type, amount_cents, ref_type, ref_id, remark) VALUES (?,?,?,?,?,?)",
+                    [user_id, "refund", amount_cents, "order", order_id, f"餐次取消退款: {reason}"]
+                )
+                
+                total_refund_amount += amount_cents
+                refunded_orders.append({
+                    "order_id": order_id,
+                    "user_id": user_id,
+                    "amount_cents": amount_cents
+                })
+            
+            # 记录操作日志
+            log_detail = {
+                "meal_id": meal_id,
+                "refunded_orders": len(refunded_orders),
+                "total_refund_amount_cents": total_refund_amount,
+                "reason": reason,
+                "admin_id": admin_row[0]
+            }
+            
+            con.execute(
+                "INSERT INTO logs(user_id, actor_id, action, detail_json) VALUES (?,?,?,?)",
+                [None, admin_row[0], "refund_orders", json.dumps(log_detail)]
+            )
+            
+            return {
+                "meal_id": meal_id,
+                "refunded_orders": len(refunded_orders),
+                "total_refund_amount_cents": total_refund_amount,
+                "status": "refunded",
+                "details": refunded_orders
+            }
 
 
 # 全局服务实例

@@ -4,6 +4,8 @@
 """
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+import io
 
 from ...schemas.meal import (
     MealCreateRequest,
@@ -13,9 +15,11 @@ from ...schemas.meal import (
     MealBatchCalendarRequest,
     MealOperationResponse
 )
-from ...core.security import get_open_id
+from ...core.security import get_open_id, get_current_user_id, check_admin_permission
 from ...core.database import db_manager
-from ...core.exceptions import DatabaseError, ValidationError, MealNotFoundError
+from ...core.exceptions import DatabaseError, ValidationError, MealNotFoundError, PermissionDeniedError
+from ...services.export_service import ExportService
+from ...services.meal_service import MealService
 
 router = APIRouter()
 
@@ -170,6 +174,49 @@ def get_meal(meal_id: int, open_id: str = Depends(get_open_id)):
         raise HTTPException(status_code=500, detail=f"数据库错误: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取餐次详情失败: {str(e)}")
+
+
+# Phase 2 新增功能：导出API
+
+@router.get("/{meal_id}/export")
+async def export_meal_orders(
+    meal_id: int,
+    current_user_id: int = Depends(get_current_user_id),
+    is_admin: bool = Depends(check_admin_permission)
+):
+    """导出餐次订单为Excel文件"""
+    try:
+        if not is_admin:
+            raise PermissionDeniedError("需要管理员权限")
+        
+        export_service = ExportService()
+        excel_data = export_service.export_meal_orders_excel(meal_id, current_user_id)
+        
+        # 获取餐次信息用于文件名
+        meal_info = db_manager.execute_one(
+            "SELECT date, slot FROM meals WHERE meal_id = ?",
+            [meal_id]
+        )
+        
+        if meal_info:
+            meal_date = str(meal_info[0])
+            meal_slot = meal_info[1]
+            filename = f"餐次订单_{meal_date}_{meal_slot}_{meal_id}.xlsx"
+        else:
+            filename = f"餐次订单_{meal_id}.xlsx"
+        
+        return StreamingResponse(
+            io.BytesIO(excel_data),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导出失败: {str(e)}")
 
 
 # TODO: 实现餐次创建、更新、状态管理等功能

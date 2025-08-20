@@ -11,6 +11,7 @@
 
 import json
 import traceback
+from datetime import datetime
 from typing import Dict, Any, Optional
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
@@ -35,7 +36,8 @@ class ErrorResponse:
             "success": False,
             "error_code": self.error_code,
             "message": self.message,
-            "details": self.details
+            "details": self.details,
+            "timestamp": datetime.now().isoformat()
         }
     
     def to_json_response(self) -> JSONResponse:
@@ -58,6 +60,17 @@ class ErrorHandler:
         "DUPLICATE_RESOURCE": 409,
         "BUSINESS_RULE_VIOLATION": 422,
         "INTERNAL_ERROR": 500,
+        
+        # 认证和授权相关
+        "AuthenticationError": 401,
+        "PermissionDeniedError": 403,
+        "ValidationError": 400,
+        
+        # 业务规则相关
+        "BusinessRuleError": 400,
+        "InsufficientBalanceError": 400,
+        "MealCapacityExceededError": 409,
+        "ConcurrencyError": 409,
         
         # 订单相关错误
         "ORDER_NOT_FOUND": 404,

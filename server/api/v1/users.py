@@ -1,9 +1,12 @@
 """
 用户管理路由模块
 重构自原 routers/users.py，使用新的架构
+增强版本 - Phase 2
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from datetime import date
+from typing import Optional
 
 from ...schemas.user import (
     UserProfileResponse,
@@ -12,9 +15,10 @@ from ...schemas.user import (
     UserRechargeResponse,
     UserUpdateRequest
 )
-from ...core.security import get_open_id
+from ...core.security import get_open_id, get_current_user_id, check_admin_permission
 from ...core.database import db_manager
-from ...core.exceptions import DatabaseError, ValidationError
+from ...core.exceptions import DatabaseError, ValidationError, PermissionDeniedError
+from ...services.user_service import UserService
 
 router = APIRouter()
 
@@ -187,3 +191,81 @@ def update_my_profile(
         raise HTTPException(status_code=500, detail=f"数据库错误: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"更新用户信息失败: {str(e)}")
+
+
+# 新增的增强功能 API - Phase 2
+
+@router.get("/profile")
+async def get_user_profile(
+    current_user_id: int = Depends(get_current_user_id)
+):
+    """获取用户资料摘要"""
+    try:
+        user_service = UserService()
+        return user_service.get_user_profile_summary(current_user_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取用户资料失败: {str(e)}")
+
+
+@router.get("/orders/history")
+async def get_order_history(
+    start_date: Optional[date] = Query(None, description="开始日期"),
+    end_date: Optional[date] = Query(None, description="结束日期"),
+    status: Optional[str] = Query(None, description="订单状态"),
+    limit: int = Query(50, ge=1, le=100, description="每页数量"),
+    offset: int = Query(0, ge=0, description="偏移量"),
+    current_user_id: int = Depends(get_current_user_id)
+):
+    """获取用户订单历史"""
+    try:
+        user_service = UserService()
+        return user_service.get_user_order_history(
+            user_id=current_user_id,
+            start_date=start_date,
+            end_date=end_date,
+            status=status,
+            limit=limit,
+            offset=offset
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取订单历史失败: {str(e)}")
+
+
+@router.get("/balance/history")
+async def get_balance_history(
+    limit: int = Query(50, ge=1, le=100, description="每页数量"),
+    offset: int = Query(0, ge=0, description="偏移量"),
+    current_user_id: int = Depends(get_current_user_id)
+):
+    """获取余额变动历史"""
+    try:
+        user_service = UserService()
+        return user_service.get_user_balance_history(
+            user_id=current_user_id,
+            limit=limit,
+            offset=offset
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取余额历史失败: {str(e)}")
+
+
+@router.post("/balance/recharge")
+async def recharge_balance(
+    user_id: int,
+    amount_cents: int,
+    current_user_id: int = Depends(get_current_user_id),
+    is_admin: bool = Depends(check_admin_permission)
+):
+    """充值用户余额（管理员操作）"""
+    try:
+        if not is_admin:
+            raise PermissionDeniedError("需要管理员权限")
+        
+        user_service = UserService()
+        return user_service.recharge_balance(user_id, amount_cents, current_user_id)
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"充值失败: {str(e)}")

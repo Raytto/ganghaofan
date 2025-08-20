@@ -19,6 +19,12 @@ export const API_ENDPOINTS = {
   USER_BALANCE: '/users/me/balance',
   USER_RECHARGE: (userId: number) => `/users/${userId}/recharge`,
   
+  // Phase 2 新增用户API
+  USER_PROFILE_SUMMARY: '/users/profile',
+  USER_ORDER_HISTORY: '/users/orders/history',
+  USER_BALANCE_HISTORY: '/users/balance/history',
+  USER_BALANCE_RECHARGE: '/users/balance/recharge',
+  
   // 餐次相关
   CALENDAR: '/calendar',
   CALENDAR_BATCH: '/calendar/batch',

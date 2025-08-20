@@ -74,3 +74,23 @@ class DuplicateOrderError(BusinessLogicError):
 class MealStatusError(BusinessLogicError):
     """餐次状态错误异常"""
     pass
+
+
+class ConcurrencyError(BaseApplicationError):
+    """并发控制错误"""
+    pass
+
+
+class PermissionDeniedError(BaseApplicationError):
+    """权限拒绝错误"""
+    pass
+
+
+class BusinessRuleError(BaseApplicationError):
+    """业务规则错误"""
+    pass
+
+
+class MealCapacityExceededError(BusinessRuleError):
+    """餐次容量超限错误"""
+    pass
