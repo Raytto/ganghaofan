@@ -14,11 +14,18 @@
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 
 # 导入新的模块结构
 from .core.database import db_manager
 from .core.exceptions import BaseApplicationError
+from .core.error_handler import (
+    application_error_handler,
+    http_exception_handler,
+    validation_exception_handler,
+    general_exception_handler
+)
 from .api.v1 import auth, users, meals, orders, logs, env
 
 # 向后兼容：保持原有的导入路径可用
@@ -58,18 +65,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-@app.exception_handler(BaseApplicationError)
-async def application_error_handler(request, exc: BaseApplicationError):
-    """统一处理应用异常"""
-    return HTTPException(
-        status_code=400,
-        detail={
-            "error_code": exc.error_code,
-            "message": exc.message,
-            "details": exc.details
-        }
-    )
+# 注册统一的异常处理器
+app.add_exception_handler(BaseApplicationError, application_error_handler)
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, general_exception_handler)
 
 
 # 注册API路由模块

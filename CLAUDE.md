@@ -59,6 +59,23 @@ client/miniprogram/          # WeChat Mini Program frontend
 │   ├── order-dialog/       # Order placement dialog
 │   ├── publish-dialog/     # Meal publishing dialog (admin)
 │   └── slot-card/          # Calendar time slot cards
+├── core/                   # Core frontend modules
+│   ├── api/                # API layer modules
+│   │   ├── auth.ts         # Authentication API
+│   │   ├── base.ts         # Base API configuration
+│   │   ├── meal.ts         # Meal-related API
+│   │   └── order.ts        # Order-related API
+│   ├── constants/          # Application constants
+│   │   ├── api.ts          # API constants
+│   │   ├── index.ts        # General constants
+│   │   └── ui.ts           # UI constants
+│   ├── store/              # State management
+│   └── utils/              # Core utilities
+├── types/                  # TypeScript type definitions
+│   ├── api.ts              # API response types
+│   ├── business.ts         # Business logic types
+│   ├── index.ts            # General types
+│   └── ui.ts               # UI component types
 └── utils/
     ├── api.ts              # Network requests and API wrapper
     ├── date.ts             # Date utility functions
@@ -69,6 +86,12 @@ server/                     # FastAPI backend service
 ├── app.py                  # Application entry point
 ├── db.py                   # Database connection and schema
 ├── config.py               # Configuration management
+├── core/                   # Core system modules
+│   ├── error_handler.py    # Unified error handling and response formatting
+│   ├── exceptions.py       # Custom exception classes
+│   └── database.py         # Database connection management
+├── services/               # Business logic services
+│   └── order_service.py    # Order processing business logic
 ├── routers/                # API route modules
 │   ├── auth.py             # Authentication routes
 │   ├── meals.py            # Meal management API
@@ -143,9 +166,22 @@ server/                     # FastAPI backend service
 
 ### Adding New Features
 1. **Backend**: Create router in `server/routers/`, add to `app.py`
-2. **Frontend**: Add API wrapper in `utils/api.ts`, implement UI
-3. **Database**: Add migrations to `db.py` schema if needed
-4. **Testing**: Add test cases to `server/qa_case/`
+2. **Frontend**: Add API wrapper in `core/api/` or `utils/api.ts`, implement UI
+3. **Types**: Define TypeScript types in `types/` directory
+4. **Database**: Add migrations to `db.py` schema if needed
+5. **Testing**: Add test cases to `server/qa_case/`
+
+### Error Handling Architecture
+- **Unified Error Handler**: Use `core/error_handler.py` for consistent error responses
+- **Custom Exceptions**: Extend `BaseApplicationError` in `core/exceptions.py`
+- **Service Layer**: Business logic in `services/` modules with proper error handling
+- **Status Code Mapping**: Automatic HTTP status code assignment based on error types
+
+### Order Processing Pattern
+- **Service Layer**: Use `order_service.py` for all order-related business logic
+- **Atomic Transactions**: All order operations are wrapped in database transactions
+- **Validation Chain**: Input validation → business rule validation → execution
+- **Audit Logging**: Comprehensive logging for all order state changes
 
 ### Meal Status Management
 - Use `meals_utils` modules for business logic
