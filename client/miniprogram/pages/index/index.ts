@@ -21,6 +21,7 @@ import { getDbKey } from '../../utils/api'
 import { promptPassphrase } from '../../utils/passphrase'
 import { formatMonth, formatDate, parseDate, getMondayStart, startOfMonth, addMonths, monthsBetween, windowMonthsForNineWeeks } from '../../utils/date'
 import { toSlotView } from '../../utils/slotView'
+import { stateManager } from '../../core/store/index'
 
 Component({
   data: {
