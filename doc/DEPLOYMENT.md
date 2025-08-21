@@ -95,13 +95,13 @@ EOF
 
 ```bash
 # 方式1: 直接启动
-python -m uvicorn app:app --reload --host 127.0.0.1 --port 8000
+python -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
 
 # 方式2: 使用Makefile
 make dev
 
 # 方式3: 一次性运行
-conda run -n ghf-server python -m uvicorn app:app --reload --host 127.0.0.1 --port 8000
+conda run -n ghf-server python -m uvicorn app:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### 5. 前端环境设置
@@ -123,7 +123,7 @@ npm install
 
 ```bash
 # 后端健康检查
-curl http://127.0.0.1:8000/health
+curl http://us.pangruitao.com:8000/health
 
 # 预期响应
 {
@@ -133,7 +133,7 @@ curl http://127.0.0.1:8000/health
 }
 
 # API文档访问
-# http://127.0.0.1:8000/docs
+# http://us.pangruitao.com:8000/docs
 ```
 
 ---

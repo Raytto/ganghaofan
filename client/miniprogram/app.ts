@@ -1,6 +1,6 @@
 // app.ts
 import { loginAndGetToken } from './utils/api'
-import { stateManager, actions } from './core/store'
+import { stateManager, actions } from './core/store/index'
 
 App<IAppOption>({
   globalData: {

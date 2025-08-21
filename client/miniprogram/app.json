@@ -1,6 +1,7 @@
 {
   "pages": [
-    "pages/calender/index",
+    "pages/index/index",
+    "pages/calender/index", 
     "pages/admin/index",
     "pages/profile/index",
     "pages/order/index",
@@ -38,7 +39,7 @@
         "text": "管理"
       },
       {
-        "pagePath": "pages/calender/index",
+        "pagePath": "pages/index/index",
         "text": "点餐"
       },
       {
