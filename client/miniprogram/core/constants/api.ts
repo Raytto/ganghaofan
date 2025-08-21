@@ -3,7 +3,7 @@
  */
 
 export const API_CONFIG = {
-  BASE_URL: 'http://127.0.0.1:8001/api/v1', // 更新为实际测试环境端口
+  BASE_URL: 'http://us.pangruitao.com:8000/api/v1', // 公网服务器地址
   TIMEOUT: 10000,
   MAX_RETRIES: 3
 } as const

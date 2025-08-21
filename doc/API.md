@@ -6,7 +6,7 @@
 
 ### 基础信息
 
-- **Base URL**: `http://127.0.0.1:8001/api/v1` (测试环境) / `http://127.0.0.1:8000/api/v1` (生产环境)
+- **Base URL**: `http://us.pangruitao.com:8000/api/v1` (公网环境) / `http://127.0.0.1:8000/api/v1` (本地环境)
 - **认证方式**: JWT Bearer Token + DB Key
 - **数据格式**: JSON
 - **字符编码**: UTF-8
@@ -616,24 +616,24 @@ if (balanceInfo.data.balance_cents < 0) {
 
 ```bash
 # 登录
-curl -X POST "http://127.0.0.1:8001/api/v1/auth/login" \
+curl -X POST "http://us.pangruitao.com:8000/api/v1/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"code":"test_code","db_key":"test_key"}'
 
 # 获取餐次列表
-curl -X GET "http://127.0.0.1:8001/api/v1/meals/?date_from=2024-01-15&date_to=2024-01-20" \
+curl -X GET "http://us.pangruitao.com:8000/api/v1/meals/?date_from=2024-01-15&date_to=2024-01-20" \
   -H "Authorization: Bearer <token>" \
   -H "X-DB-Key: test_value"
 
 # 创建订单（可能透支）
-curl -X POST "http://127.0.0.1:8001/api/v1/orders/orders" \
+curl -X POST "http://us.pangruitao.com:8000/api/v1/orders/orders" \
   -H "Authorization: Bearer <token>" \
   -H "X-DB-Key: test_value" \
   -H "Content-Type: application/json" \
   -d '{"meal_id":123,"qty":2,"options_json":"{\"chicken_leg\":true}","notes":"不要辣"}'
 
 # 管理员调整余额（透支功能）
-curl -X POST "http://127.0.0.1:8001/api/v1/users/admin/balance/adjust" \
+curl -X POST "http://us.pangruitao.com:8000/api/v1/users/admin/balance/adjust" \
   -H "Authorization: Bearer <admin_token>" \
   -H "X-DB-Key: test_value" \
   -H "Content-Type: application/json" \
