@@ -95,9 +95,8 @@ Component({
     attached() {
       const m = this.data.month
 
-      // 初始化主题
-      const app = getApp<IAppOption>()
-      const darkMode = app?.globalData?.darkMode !== false
+      // 初始化主题 - 使用新的状态管理系统
+      const darkMode = stateManager.getState<boolean>('app.darkMode')
 
       this.setData({
         monthLabel: m.replace('-', '年') + '月',
@@ -107,6 +106,14 @@ Component({
         todayCnLabel: this.formatCnDate(new Date()),
         themeClass: darkMode ? '' : 'light-theme',
         darkMode: darkMode
+      })
+
+      // 订阅主题变化
+      this._darkModeUnsubscribe = stateManager.subscribe('app.darkMode', (newValue) => {
+        this.setData({
+          darkMode: newValue,
+          themeClass: newValue ? '' : 'light-theme'
+        })
       })
         // init caches
         ; (this as any)._byKey = new Map<string, any>()
@@ -127,6 +134,14 @@ Component({
       this.loadWeek(this.data.anchorDate, { preload3Months: true })
       // After first render, measure viewport and center the track
       wx.nextTick(() => this.measureViewportAndCenter())
+    },
+
+    detached() {
+      // 清理主题订阅
+      if (this._darkModeUnsubscribe) {
+        this._darkModeUnsubscribe()
+        this._darkModeUnsubscribe = null
+      }
     }
   },
   methods: {
