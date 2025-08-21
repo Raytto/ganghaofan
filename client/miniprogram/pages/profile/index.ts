@@ -1,6 +1,6 @@
 import { api, getDbKey } from '../../utils/api'
 import { promptPassphrase } from '../../utils/passphrase'
-import { createPageReactive, stateManager, actions } from '../../core/store'
+import { createPageReactive, stateManager, actions } from '../../core/store/index'
 
 Page({
     // 混入响应式功能

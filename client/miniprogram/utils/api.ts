@@ -14,7 +14,7 @@
  * - 支持微信小程序的request API
  */
 
-const BASE_URL = 'http://127.0.0.1:8000/api/v1';
+const BASE_URL = 'http://us.pangruitao.com:8000/api/v1';
 const TOKEN_KEY = 'auth_token';
 const DB_KEY_MAP_KEY = 'db_key_map'; // { [open_id]: key }
 const DB_KEY_GLOBAL_KEY = 'db_key_global'; // 临时全局 Key（未拿到 open_id 之前使用）

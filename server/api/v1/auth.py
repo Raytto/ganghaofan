@@ -20,7 +20,7 @@ from ...config import get_mock_settings, get_passphrase_map
 router = APIRouter()
 
 
-@router.post("/auth/login", response_model=LoginResponse)
+@router.post("/login", response_model=LoginResponse)
 def login(req: LoginRequest):
     """
     微信小程序登录认证

@@ -3,7 +3,7 @@
  * 集成新的状态管理和用户API
  */
 import { UserAPI } from '../../core/api/user'
-import { createPageReactive, stateManager, actions } from '../../core/store'
+import { createPageReactive, stateManager, actions } from '../../core/store/index'
 import { formatCurrency, formatDate } from '../../utils/date'
 
 Page({

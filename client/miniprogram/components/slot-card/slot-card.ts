@@ -4,7 +4,7 @@
  * @description 显示餐次信息和订餐状态的卡片组件
  * @version 2.0.0
  */
-import { createComponentReactive, stateManager } from '../../core/store'
+import { createComponentReactive, stateManager } from '../../core/store/index'
 
 Component({
     properties: {
