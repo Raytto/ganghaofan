@@ -1,6 +1,13 @@
 // app.ts
 import { loginAndGetToken } from './utils/api'
 import { stateManager, actions } from './core/store/index'
+import { API_CONFIG } from './core/constants/api'
+
+// 调试信息 - 确认API配置
+console.log('=== 应用启动调试信息 ===')
+console.log('API_CONFIG.BASE_URL:', API_CONFIG.BASE_URL)
+console.log('时间戳:', new Date().toISOString())
+console.log('========================')
 
 App<IAppOption>({
   globalData: {

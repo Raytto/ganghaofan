@@ -20,6 +20,12 @@ const DB_KEY_MAP_KEY = 'db_key_map'; // { [open_id]: key }
 const DB_KEY_GLOBAL_KEY = 'db_key_global'; // 临时全局 Key（未拿到 open_id 之前使用）
 const CURRENT_OPEN_ID_KEY = 'current_open_id';
 
+// 调试信息
+console.log('=== utils/api.ts 调试信息 ===')
+console.log('BASE_URL:', BASE_URL)
+console.log('时间戳:', new Date().toISOString())
+console.log('=============================')
+
 export function getToken(): string | null {
     try { return wx.getStorageSync(TOKEN_KEY) || null; } catch { return null; }
 }
@@ -150,7 +156,14 @@ async function request<T = any>(
     };
 
     const doOnce = (): Promise<T> => {
-        const url = path.startsWith('http') ? path : `${BASE_URL}${path}`;
+        let url = path.startsWith('http') ? path : `${BASE_URL}${path}`;
+        
+        // 强制替换任何127.0.0.1地址，确保使用公网地址
+        if (url.includes('127.0.0.1:8000')) {
+            url = url.replace('127.0.0.1:8000', 'us.pangruitao.com:8000');
+            console.log('强制替换URL:', url);
+        }
+        
         const headers: Record<string, string> = options.header ? { ...(options.header as any) } : {};
         const token = getToken();
         if (token) headers['Authorization'] = `Bearer ${token}`;
