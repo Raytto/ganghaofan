@@ -158,21 +158,26 @@ async function request<T = any>(
         if (dbKey) headers['X-DB-Key'] = dbKey;
 
         return new Promise((resolve, reject) => {
+            console.log(`Making request to: ${url}`);
             wx.request({
                 ...options,
                 url,
                 header: headers,
+                timeout: 10000, // 10秒超时
                 success: (res) => {
                     const sc = res.statusCode || 0
                     if (sc >= 200 && sc < 300) {
+                        console.log(`Request success: ${url} - ${sc}`);
                         resolve(res.data as T)
                     } else {
+                        console.log(`Request error: ${url} - ${sc}`);
                         const payload: any = res.data || {}
                         const err = { code: payload.code || sc, message: payload.message || 'HTTP Error', detail: payload }
                         reject(err)
                     }
                 },
                 fail: (e) => {
+                    console.log(`Request failed: ${url}`, e);
                     reject({ code: -1, message: 'Network Error', detail: e })
                 },
             })
@@ -193,6 +198,17 @@ async function request<T = any>(
             if (!p.includes('/env/resolve')) {
                 const key = await promptPassphraseInline();
                 if (key) return await doOnce();
+            }
+        }
+        // 网络错误时等待片刻后重试一次
+        if (e && e.code === -1 && e.message === 'Network Error') {
+            console.log('Network error detected, retrying after 500ms...');
+            await new Promise(resolve => setTimeout(resolve, 500));
+            try {
+                return await doOnce()
+            } catch (retryError) {
+                console.log('Retry failed, throwing original error');
+                // 重试失败，抛出原错误
             }
         }
         throw e
@@ -261,7 +277,8 @@ export async function getCalendar(month: string): Promise<{ month: string; meals
  *   Promise: 包含各月餐次数据的对象
  */
 export async function getCalendarBatch(months: string[]): Promise<{ months: Record<string, MealCalendarItem[]> }> {
-    const q = encodeURIComponent(months.join(','));
+    // 避免对逗号进行URL编码，直接传递给后端
+    const q = months.join(',');
     return request(`/calendar/batch?months=${q}`, { method: 'GET' });
 }
 
