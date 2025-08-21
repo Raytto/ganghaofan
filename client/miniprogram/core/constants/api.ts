@@ -29,7 +29,7 @@ export const API_ENDPOINTS = {
   CALENDAR: '/calendar',
   CALENDAR_BATCH: '/calendar/batch',
   MEAL_DETAIL: (mealId: number) => `/meals/${mealId}`,
-  MEAL_CREATE: '/meals',
+  MEAL_CREATE: '/meals/',
   MEAL_UPDATE: (mealId: number) => `/meals/${mealId}`,
   MEAL_LOCK: (mealId: number) => `/meals/${mealId}/lock`,
   MEAL_UNLOCK: (mealId: number) => `/meals/${mealId}/unlock`,

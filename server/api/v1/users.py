@@ -37,11 +37,17 @@ def get_my_profile(open_id: str = Depends(get_open_id)):
         )
         
         if not user_row:
-            # 创建新用户
-            db_manager.execute_query(
-                "INSERT INTO users(open_id) VALUES (?)",
-                [open_id]
-            )
+            # 创建新用户（使用 INSERT OR IGNORE 避免竞态条件）
+            try:
+                db_manager.execute_query(
+                    "INSERT INTO users(open_id) VALUES (?)",
+                    [open_id]
+                )
+            except Exception:
+                # 忽略重复插入错误，可能是并发创建
+                pass
+            
+            # 重新查询用户信息
             user_row = db_manager.execute_one(
                 "SELECT id, open_id, nickname, is_admin, balance_cents FROM users WHERE open_id = ?",
                 [open_id]
@@ -74,12 +80,26 @@ def get_my_balance(open_id: str = Depends(get_open_id)):
         )
         
         if not user_row:
-            # 创建新用户
-            db_manager.execute_query(
-                "INSERT INTO users(open_id) VALUES (?)",
+            # 创建新用户（使用异常处理避免竞态条件）
+            try:
+                db_manager.execute_query(
+                    "INSERT INTO users(open_id) VALUES (?)",
+                    [open_id]
+                )
+            except Exception:
+                # 忽略重复插入错误，可能是并发创建
+                pass
+            
+            # 重新查询用户信息
+            user_row = db_manager.execute_one(
+                "SELECT id, balance_cents FROM users WHERE open_id = ?",
                 [open_id]
             )
-            return UserBalanceResponse(user_id=0, balance_cents=0)
+            
+            if user_row:
+                return UserBalanceResponse(user_id=user_row[0], balance_cents=user_row[1])
+            else:
+                return UserBalanceResponse(user_id=0, balance_cents=0)
         
         return UserBalanceResponse(
             user_id=user_row[0],

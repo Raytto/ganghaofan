@@ -2,5 +2,6 @@
     "enabled": true,
     "openid": "mock_dev_user",
     "nickname": "开发测试用户",
-    "unique_per_login": false
+    "unique_per_login": false,
+    "is_admin": true
 }

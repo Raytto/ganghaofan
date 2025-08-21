@@ -32,5 +32,5 @@ text, view { color: #C9D1D9; }
 .light-theme .theme-container-bg { background: #F8F9FA; }
 .light-theme .theme-text { color: #202124; }
 .light-theme .theme-text-secondary { color: #5F6368; }
-.light-theme .theme-text-tertiary { color: #9AA0A6; }
+.light-theme .theme-text-tertiary { color: #80868B; }
 .light-theme .theme-border { border-color: rgba(0,0,0,0.08); }

@@ -18,8 +18,71 @@ page {
   /* Fill bottom reserved space with theme container background to avoid transparent gap */
   background: #131314;
 }
-/* Light theme variant */
+/* Light theme variants */
 .light-theme .scrollarea { background: #F8F9FA; }
+
+/* Light theme - Calendar cells */
+.light-theme .cell {
+  background: #FFFFFF;
+  box-shadow: inset 0 0 0 0.5px #E1E4E8;
+}
+
+/* Light theme - Date numbers */
+.light-theme .date-num { color: #24292F; }
+
+/* Light theme - Today date */
+.light-theme .date.today .date-num {
+  background: #0969DA;
+  color: #FFFFFF;
+}
+
+/* Light theme - Header elements */
+.light-theme .header {
+  border-bottom: 0.5px solid rgba(27,31,36,0.15);
+}
+
+.light-theme .header .slogan { color: #656D76; }
+
+.light-theme .today-sm {
+  border: 0.5px solid rgba(27,31,36,0.15);
+  background: #F6F8FA;
+  color: #24292F;
+}
+
+.light-theme .view-toggle {
+  border: 0.5px solid rgba(27,31,36,0.15);
+  background: #F6F8FA;
+  color: #24292F;
+}
+
+.light-theme .header-bottom .full { color: #24292F; }
+
+/* Light theme - Week header */
+.light-theme .week-header {
+  color: #656D76;
+}
+
+/* Light theme - Slot cards */
+.light-theme .slot {
+  border: 0.5px solid rgba(27,31,36,0.15);
+  color: #24292F;
+}
+
+/* Light theme - Slot card text */
+.light-theme .slot text {
+  color: #24292F;
+}
+
+/* Light theme - Slot status text */
+.light-theme .sline.line2,
+.light-theme .sline.line3 {
+  color: #656D76;
+}
+
+/* Light theme - Other text elements */
+.light-theme .userinfo {
+  color: #5F6368;
+}
 
 .header {
   display: flex;

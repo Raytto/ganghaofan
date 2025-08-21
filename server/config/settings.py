@@ -4,7 +4,7 @@ import os
 
 class Settings(BaseSettings):
     # 数据库配置
-    database_url: str = "duckdb:///home/pp/mp/ganghaofan/server/data/ganghaofan.duckdb"
+    database_url: str = "duckdb://./server/data/ganghaofan.duckdb"
     
     # JWT配置
     jwt_secret_key: str = "your-secret-key"

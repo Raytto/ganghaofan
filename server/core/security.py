@@ -111,6 +111,7 @@ def verify_token(token: str) -> str:
 async def get_current_user_id(open_id: str = Depends(get_open_id)) -> int:
     """获取当前用户ID"""
     try:
+        print(f"DEBUG: Getting user ID for open_id: {open_id}")
         with db_manager.connection as conn:
             user_row = conn.execute(
                 "SELECT id FROM users WHERE open_id = ?", 
@@ -136,12 +137,18 @@ async def get_current_user_id(open_id: str = Depends(get_open_id)) -> int:
 async def check_admin_permission(current_user_id: int = Depends(get_current_user_id)) -> bool:
     """检查管理员权限"""
     try:
+        print(f"DEBUG: Checking admin permission for user_id: {current_user_id}")
         with db_manager.connection as conn:
             user_row = conn.execute(
                 "SELECT is_admin FROM users WHERE id = ?", 
                 [current_user_id]
             ).fetchone()
             
-            return user_row and user_row["is_admin"]
+            result = user_row and user_row["is_admin"]
+            print(f"DEBUG: Admin permission result: {result}")
+            return result
     except Exception as e:
+        print(f"DEBUG: Exception in check_admin_permission: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"权限检查失败: {str(e)}")

@@ -1,0 +1,96 @@
+[自动热重载] 已开启代码文件保存后自动热重载
+[Deprecation] SharedArrayBuffer will require cross-origin isolation as of M92, around July 2021. See https://developer.chrome.com/blog/enabling-shared-array-buffer/ for more details.
+[system] WeChatLib: 3.9.1 (2025.8.15 13:10:04)
+[system] Subpackages: N/A
+[system] LazyCodeLoading: true
+Lazy code loading is enabled. Only injecting required components.
+wx.getSystemInfoSync is deprecated.Please use wx.getSystemSetting/wx.getAppAuthorizeSetting/wx.getDeviceInfo/wx.getWindowInfo/wx.getAppBaseInfo instead.
+initSystemInfo @ actions.ts:232
+_callee$ @ actions.ts:252
+s @ regeneratorRuntime.js?forceSync=true:1
+(anonymous) @ regeneratorRuntime.js?forceSync=true:1
+(anonymous) @ regeneratorRuntime.js?forceSync=true:1
+asyncGeneratorStep @ asyncToGenerator.js?forceSync=true:1
+c @ asyncToGenerator.js?forceSync=true:1
+(anonymous) @ asyncToGenerator.js?forceSync=true:1
+(anonymous) @ asyncToGenerator.js?forceSync=true:1
+initializeApp @ actions.ts:272
+_callee$ @ app.ts:16
+s @ regeneratorRuntime.js?forceSync=true:1
+(anonymous) @ regeneratorRuntime.js?forceSync=true:1
+(anonymous) @ regeneratorRuntime.js?forceSync=true:1
+asyncGeneratorStep @ asyncToGenerator.js?forceSync=true:1
+c @ asyncToGenerator.js?forceSync=true:1
+(anonymous) @ asyncToGenerator.js?forceSync=true:1
+(anonymous) @ asyncToGenerator.js?forceSync=true:1
+onLaunch @ app.ts:43
+(anonymous) @ app.ts:5
+async function (async)
+(anonymous) @ appservice.app.js:5
+wx.getSystemInfo is deprecated.Please use wx.getSystemSetting/wx.getAppAuthorizeSetting/wx.getDeviceInfo/wx.getWindowInfo/wx.getAppBaseInfo instead.
+attached @ navigation-bar.ts:79
+[pages/index/index] Some selectors are not allowed in component wxss, including tag name selectors, ID selectors, and attribute selectors.(./components/slot-card/slot-card.wxss:4:7)
+api.ts:161 Making request to: http://127.0.0.1:8000/api/v1/calendar/batch?months=2025-07,2025-08,2025-09
+Thu Aug 21 2025 15:19:35 GMT+0800 (中国标准时间)
+Skyline 渲染模式在 2.29.2 及以上基础库支持。
+当前小程序未设置线上最低基础库版本，在低版本的客户端中，将使用 WebView 渲染模式进行渲染。
+需要保证页面[pages/index/index]同时在两种渲染模式下都能够正常显示;
+ 点此切换渲染模式   不再提示
+api.ts:170 Request success: http://127.0.0.1:8000/api/v1/calendar/batch?months=2025-07,2025-08,2025-09 - 200
+[system] Launch Time: 2706 ms
+api.ts:161 Making request to: http://127.0.0.1:8000/api/v1/auth/login
+api.ts:170 Request success: http://127.0.0.1:8000/api/v1/auth/login - 200
+api.ts:161 Making request to: http://127.0.0.1:8000/api/v1/users/me
+api.ts:170 Request success: http://127.0.0.1:8000/api/v1/users/me - 200
+api.ts:161 Making request to: http://127.0.0.1:8000/api/v1/calendar/batch?months=2025-07,2025-08,2025-09
+api.ts:170 Request success: http://127.0.0.1:8000/api/v1/calendar/batch?months=2025-07,2025-08,2025-09 - 200
+api.ts:161 Making request to: http://127.0.0.1:8000/api/v1/calendar/batch?months=2025-08,2025-09,2025-10
+api.ts:170 Request success: http://127.0.0.1:8000/api/v1/calendar/batch?months=2025-08,2025-09,2025-10 - 200
+[自动热重载] 已开启代码文件保存后自动热重载
+wx.getSystemInfo is deprecated.Please use wx.getSystemSetting/wx.getAppAuthorizeSetting/wx.getDeviceInfo/wx.getWindowInfo/wx.getAppBaseInfo instead.
+attached @ navigation-bar.ts:79
+api.ts:161 Making request to: http://127.0.0.1:8000/api/v1/users/me
+api.ts:161 Making request to: http://127.0.0.1:8000/api/v1/users/me/balance
+api.ts:162 GET http://127.0.0.1:8000/api/v1/users/me 500 (Internal Server Error)(env: Windows,mp,1.06.2504020; lib: 3.9.1)
+(anonymous) @ api.ts:162
+doOnce @ api.ts:160
+_callee3$ @ api.ts:188
+s @ regeneratorRuntime.js?forceSync=true:1
+(anonymous) @ regeneratorRuntime.js?forceSync=true:1
+(anonymous) @ regeneratorRuntime.js?forceSync=true:1
+asyncGeneratorStep @ asyncToGenerator.js?forceSync=true:1
+c @ asyncToGenerator.js?forceSync=true:1
+(anonymous) @ asyncToGenerator.js?forceSync=true:1
+(anonymous) @ asyncToGenerator.js?forceSync=true:1
+request @ api.ts:100
+_callee$ @ index.ts:52
+s @ regeneratorRuntime.js?forceSync=true:1
+(anonymous) @ regeneratorRuntime.js?forceSync=true:1
+(anonymous) @ regeneratorRuntime.js?forceSync=true:1
+asyncGeneratorStep @ asyncToGenerator.js?forceSync=true:1
+c @ asyncToGenerator.js?forceSync=true:1
+(anonymous) @ asyncToGenerator.js?forceSync=true:1
+(anonymous) @ asyncToGenerator.js?forceSync=true:1
+loadUser @ index.ts:64
+onShow @ index.ts:40
+api.ts:170 Request success: http://127.0.0.1:8000/api/v1/users/me/balance - 200
+api.ts:173 Request error: http://127.0.0.1:8000/api/v1/users/me - 500
+index.ts:64 加载用户信息失败 {code: 500, message: "数据库错误: Query execution failed: Constraint Error: D…umentation (https://duckdb.org/docs/sql/indexes).", detail: {…}}
+_callee$ @ index.ts:64
+s @ regeneratorRuntime.js?forceSync=true:1
+(anonymous) @ regeneratorRuntime.js?forceSync=true:1
+(anonymous) @ regeneratorRuntime.js?forceSync=true:1
+asyncGeneratorStep @ asyncToGenerator.js?forceSync=true:1
+i @ asyncToGenerator.js?forceSync=true:1
+Promise.then (async)
+asyncGeneratorStep @ asyncToGenerator.js?forceSync=true:1
+c @ asyncToGenerator.js?forceSync=true:1
+(anonymous) @ asyncToGenerator.js?forceSync=true:1
+(anonymous) @ asyncToGenerator.js?forceSync=true:1
+loadUser @ index.ts:64
+onShow @ index.ts:40
+Thu Aug 21 2025 15:19:47 GMT+0800 (中国标准时间)
+Skyline 渲染模式在 2.29.2 及以上基础库支持。
+当前小程序未设置线上最低基础库版本，在低版本的客户端中，将使用 WebView 渲染模式进行渲染。
+需要保证页面[pages/profile/index]同时在两种渲染模式下都能够正常显示;
+ 点此切换渲染模式   不再提示

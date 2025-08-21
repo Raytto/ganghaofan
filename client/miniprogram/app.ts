@@ -8,7 +8,7 @@ App<IAppOption>({
     debugMode: true,
     isAdmin: true,
     adminViewEnabled: true,
-    darkMode: true,
+    darkMode: false, // 默认浅色模式，与状态管理保持一致
   },
   
   async onLaunch() {

@@ -23,7 +23,7 @@ import { formatMonth, formatDate, parseDate, getMondayStart, startOfMonth, addMo
 import { toSlotView } from '../../utils/slotView'
 import { stateManager } from '../../core/store/index'
 
-Component({
+Page({
   data: {
     // 时间和标签相关
     month: formatMonth(),
@@ -79,12 +79,12 @@ Component({
 
     // 发布表单数据
     publishForm: {
-      date: '',
-      slot: 'lunch',
-      description: '',
-      basePrice: 20, // 单位：元
-      capacity: 50,
-      options: [] as { id: string; name: string; price: number }[],
+    date: '',
+    slot: 'lunch',
+    description: '',
+    basePrice: 20, // 单位：元
+    capacity: 50,
+    options: [] as { id: string; name: string; price: number }[],
     },
 
     // 主题相关
@@ -92,66 +92,100 @@ Component({
     darkMode: false, // 默认浅色模式
   },
 
-  lifetimes: {
-    attached() {
-      const m = this.data.month
+  onLoad() {
+    const m = this.data.month
 
-      // 初始化主题 - 使用新的状态管理系统
-      const darkMode = stateManager.getState<boolean>('app.darkMode')
+    // 初始化主题 - 使用新的状态管理系统
+    const darkMode = stateManager.getState<boolean>('app.darkMode')
 
+    this.setData({
+      monthLabel: m.replace('-', '年') + '月',
+      yearLabel: m.split('-')[0] + '年',
+      monthOnlyLabel: m.split('-')[1].replace(/^0/, '') + '月',
+      fullLabel: m.replace('-', '年') + '月',
+      todayCnLabel: this.formatCnDate(new Date()),
+      themeClass: darkMode ? '' : 'light-theme',
+      darkMode: darkMode
+    })
+
+    // 订阅主题变化
+    this._darkModeUnsubscribe = stateManager.subscribe('app.darkMode', (newValue) => {
       this.setData({
-        monthLabel: m.replace('-', '年') + '月',
-        yearLabel: m.split('-')[0] + '年',
-        monthOnlyLabel: m.split('-')[1].replace(/^0/, '') + '月',
-        fullLabel: m.replace('-', '年') + '月',
-        todayCnLabel: this.formatCnDate(new Date()),
-        themeClass: darkMode ? '' : 'light-theme',
-        darkMode: darkMode
+        darkMode: newValue,
+        themeClass: newValue ? '' : 'light-theme'
       })
-
-      // 订阅主题变化
-      this._darkModeUnsubscribe = stateManager.subscribe('app.darkMode', (newValue) => {
-        this.setData({
-          darkMode: newValue,
-          themeClass: newValue ? '' : 'light-theme'
-        })
-      })
-        // init caches
-        ; (this as any)._byKey = new Map<string, any>()
-        ; (this as any)._loadedMonths = new Set<string>()
-        ; (this as any)._dbKeyPrev = getDbKey() || ''
-      // set adminView and slogan based on app global toggle & permission
-      this.refreshAdminBindings()
-        ; (this as any)._lastRefreshTs = 0
-        ; (this as any)._refreshingSwipe = false
-      // 如果未设置口令，优先弹窗并跳过首次数据加载，待设置后再刷新
-      const dbKey = getDbKey()
-      if (!dbKey) {
-        wx.nextTick(() => this.measureViewportAndCenter())
-        setTimeout(() => this.promptPassphraseOnCalendar(), 50)
-        return
-      }
-      // 已有口令则正常加载
-      this.loadWeek(this.data.anchorDate, { preload3Months: true })
-      // After first render, measure viewport and center the track
+    })
+      // init caches
+      ; (this as any)._byKey = new Map<string, any>()
+      ; (this as any)._loadedMonths = new Set<string>()
+      ; (this as any)._dbKeyPrev = getDbKey() || ''
+    // set adminView and slogan based on app global toggle & permission
+    this.refreshAdminBindings()
+      ; (this as any)._lastRefreshTs = 0
+      ; (this as any)._refreshingSwipe = false
+    // 如果未设置口令，优先弹窗并跳过首次数据加载，待设置后再刷新
+    const dbKey = getDbKey()
+    if (!dbKey) {
       wx.nextTick(() => this.measureViewportAndCenter())
-    },
+      setTimeout(() => this.promptPassphraseOnCalendar(), 50)
+      return
+    }
+    // 已有口令则正常加载
+    this.loadWeek(this.data.anchorDate, { preload3Months: true })
+    // After first render, measure viewport and center the track
+    wx.nextTick(() => this.measureViewportAndCenter())
+  },
 
-    detached() {
-      // 清理主题订阅
-      if (this._darkModeUnsubscribe) {
-        this._darkModeUnsubscribe()
-        this._darkModeUnsubscribe = null
-      }
+  onShow() {
+    // 更新 tab-bar 选中状态
+    const tab = (this as any).getTabBar && (this as any).getTabBar()
+    if (tab && typeof (tab as any).updateSelected === 'function') {
+      (tab as any).updateSelected()
+    }
+    
+    // 更新主题状态（可能在其他页面被修改）
+    const currentDarkMode = stateManager.getState<boolean>('app.darkMode')
+    this.setData({
+      darkMode: currentDarkMode,
+      themeClass: currentDarkMode ? '' : 'light-theme'
+    })
+    
+    // Refresh admin-related UI (slogan/adminView) when page becomes visible
+    this.refreshAdminBindings()
+    
+    // 若DB Key发生变更（例如在"我的"页设置/修改），则清缓存并强制刷新日历
+    const curKey = getDbKey() || ''
+    const prevKey = (this as any)._dbKeyPrev || ''
+    if (curKey !== prevKey) {
+      this.onDbKeyChanged(curKey)
+    }
+    
+    // 如仍未设置口令，则提示设置
+    if (!curKey) {
+      setTimeout(() => this.promptPassphraseOnCalendar(), 50)
+    }
+    
+    // 若尚未完成测量，补一次测量与居中
+    if (!this.data.blockH || this.data.blockH <= 0) {
+      wx.nextTick(() => this.measureViewportAndCenter())
     }
   },
-  methods: {
-    // 口令相关：弹窗并在设置后刷新当前日历
-    async promptPassphraseOnCalendar() {
+
+  onUnload() {
+    // 清理主题订阅
+    if (this._darkModeUnsubscribe) {
+      this._darkModeUnsubscribe()
+      this._darkModeUnsubscribe = null
+    }
+  },
+
+  // 口令相关：弹窗并在设置后刷新当前日历
+  async promptPassphraseOnCalendar() {
       const key = await promptPassphrase()
       if (key) this.onDbKeyChanged(key || '')
-    },
-    onDbKeyChanged(newKey: string) {
+  },
+  
+  onDbKeyChanged(newKey: string) {
       ; (this as any)._dbKeyPrev = newKey || ''
       // 清理旧缓存与视图测量值，避免沿用错误的高度与基线
       this.resetCalendarCache()
@@ -365,11 +399,11 @@ Component({
           wx.showToast({ title: '网络超时，请稍后重试', icon: 'none' })
         }, 15000)
       const body: any = {
-        date: dateToUse,
+        meal_date: dateToUse,
         slot: slotToUse,
         title: null,
         description: form.description || '',
-        base_price_cents: Math.round((form.basePrice || 0) * 100),
+        base_price_cents: Math.max(1, Math.round((form.basePrice || 0) * 100)),
         options: (form.options || []).map((o: any) => ({ id: String(o.id || ''), name: o.name || '', price_cents: Math.round((o.price || 0) * 100) })),
         capacity: Math.max(1, Number(form.capacity || 0)),
       }
@@ -928,30 +962,5 @@ Component({
       }
       // 用户模式：打开点餐弹窗（不同状态下不同操作能力）
       this.openOrderDialogBySlot(Number(mealId), String(status), Number(left || 0), Boolean(my))
-    },
-  },
-  pageLifetimes: {
-    show() {
-      // Refresh admin-related UI (slogan/adminView) when page becomes visible
-      this.refreshAdminBindings()
-      const tab = (this as any).getTabBar && (this as any).getTabBar()
-      if (tab && typeof tab.updateSelected === 'function') {
-        tab.updateSelected()
-      }
-      // 若DB Key发生变更（例如在“我的”页设置/修改），则清缓存并强制刷新日历
-      const curKey = getDbKey() || ''
-      const prevKey = (this as any)._dbKeyPrev || ''
-      if (curKey !== prevKey) {
-        this.onDbKeyChanged(curKey)
-      }
-      // 如仍未设置口令，则提示设置
-      if (!curKey) {
-        setTimeout(() => this.promptPassphraseOnCalendar(), 50)
-      }
-      // 若尚未完成测量，补一次测量与居中
-      if (!this.data.blockH || this.data.blockH <= 0) {
-        wx.nextTick(() => this.measureViewportAndCenter())
-      }
     }
-  }
 })

@@ -1,7 +1,6 @@
 {
   "pages": [
     "pages/index/index",
-    "pages/calender/index", 
     "pages/admin/index",
     "pages/profile/index",
     "pages/order/index",

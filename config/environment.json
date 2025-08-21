@@ -1,0 +1,27 @@
+{
+  "active": "local", 
+  "environments": {
+    "local": {
+      "backend": {
+        "host": "127.0.0.1", 
+        "protocol": "http", 
+        "port": 8000
+      }, 
+      "name": "本地开发环境", 
+      "database": {
+        "path": "./server/data/ganghaofan.duckdb"
+      }
+    }, 
+    "remote": {
+      "backend": {
+        "host": "us.pangruitao.com", 
+        "protocol": "http", 
+        "port": 8000
+      }, 
+      "name": "远程服务器环境", 
+      "database": {
+        "path": "/home/pp/mp/ganghaofan/server/data/ganghaofan.duckdb"
+      }
+    }
+  }
+}

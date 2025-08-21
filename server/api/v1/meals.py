@@ -219,5 +219,65 @@ async def export_meal_orders(
         raise HTTPException(status_code=500, detail=f"导出失败: {str(e)}")
 
 
-# TODO: 实现餐次创建、更新、状态管理等功能
+@router.post("/")
+def create_meal(
+    meal_data: MealCreateRequest,
+    current_user_id: int = Depends(get_current_user_id),
+    is_admin: bool = Depends(check_admin_permission)
+):
+    """创建餐次（管理员功能）"""
+    try:
+        print(f"DEBUG: Creating meal with data: {meal_data}")
+        print(f"DEBUG: User ID: {current_user_id}, is_admin: {is_admin}")
+        if not is_admin:
+            raise PermissionDeniedError("需要管理员权限")
+        
+        meal_service = MealService()
+        
+        # 转换请求数据到 MealCreate 模型
+        from ...models.meal import MealCreate, MealOption
+        meal_create_data = MealCreate(
+            meal_date=meal_data.meal_date,
+            slot=meal_data.slot,
+            title=meal_data.title,
+            description=meal_data.description,
+            base_price_cents=meal_data.base_price_cents,
+            capacity=meal_data.capacity,
+            per_user_limit=meal_data.per_user_limit,
+            options=[MealOption(
+                id=opt.id,
+                name=opt.name,
+                price_cents=opt.price_cents
+            ) for opt in meal_data.options]
+        )
+        
+        # 创建餐次
+        meal = meal_service.create_meal(meal_create_data, current_user_id)
+        
+        return {
+            "meal_id": meal.meal_id,
+            "date": str(meal.meal_date),
+            "slot": meal.slot,
+            "title": meal.title,
+            "description": meal.description,
+            "base_price_cents": meal.base_price_cents,
+            "options": meal.options,
+            "capacity": meal.capacity,
+            "per_user_limit": meal.per_user_limit,
+            "status": meal.status,
+            "message": "餐次创建成功"
+        }
+        
+    except PermissionDeniedError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        print(f"DEBUG: Exception in create_meal: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"创建餐次失败: {str(e)}")
+
+
+# TODO: 实现餐次更新、状态管理等功能
 # 现在先保持基本的查询功能，后续会补充完整的管理功能
