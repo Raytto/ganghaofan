@@ -1,0 +1,24 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8001,
+    "startup_timeout": 30
+  },
+  "database": {
+    "path": "data/test_ganghaofan.duckdb",
+    "backup_on_failure": true,
+    "cleanup_on_success": true
+  },
+  "auth": {
+    "jwt_secret": "test-secret-key-for-e2e-testing",
+    "token_expire_hours": 24
+  },
+  "logging": {
+    "level": "INFO",
+    "file_pattern": "logs/test_run_{timestamp}.log"
+  },
+  "timeouts": {
+    "api_request": 10,
+    "database_operation": 5
+  }
+}

@@ -13,6 +13,39 @@ import type {
 
 export class MealAPI {
   /**
+   * 获取餐次列表（支持筛选）
+   */
+  async getMealsList(params?: {
+    status?: string
+    date_from?: string
+    date_to?: string
+    limit?: number
+    offset?: number
+  }): Promise<any> {
+    const queryParams = new URLSearchParams()
+    
+    if (params?.status) queryParams.append('status', params.status)
+    if (params?.date_from) queryParams.append('date_from', params.date_from)
+    if (params?.date_to) queryParams.append('date_to', params.date_to)
+    if (params?.limit) queryParams.append('limit', params.limit.toString())
+    if (params?.offset) queryParams.append('offset', params.offset.toString())
+
+    const url = `${API_ENDPOINTS.MEAL_LIST}?${queryParams.toString()}`
+
+    return httpClient.get(url, {
+      showLoading: params?.offset === 0,
+      cacheDuration: 2 * 60 * 1000, // 2分钟缓存
+      retryConfig: {
+        maxAttempts: 2,
+        baseDelay: 500,
+        maxDelay: 2000,
+        backoffFactor: 2,
+        retryableErrors: ['timeout', 'fail', 'NETWORK_ERROR']
+      }
+    })
+  }
+
+  /**
    * 获取指定月份的餐次日历
    */
   async getCalendar(month: string): Promise<MealCalendarResponse> {

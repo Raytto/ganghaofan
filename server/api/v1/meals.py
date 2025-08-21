@@ -6,6 +6,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 import io
+from typing import Dict, Any
 
 from ...schemas.meal import (
     MealCreateRequest,
@@ -279,5 +280,222 @@ def create_meal(
         raise HTTPException(status_code=500, detail=f"创建餐次失败: {str(e)}")
 
 
-# TODO: 实现餐次更新、状态管理等功能
-# 现在先保持基本的查询功能，后续会补充完整的管理功能
+# 餐次状态管理API
+
+@router.post("/{meal_id}/lock", response_model=Dict[str, Any])
+def lock_meal(meal_id: int, open_id: str = Depends(get_open_id)):
+    """锁定餐次（管理员功能）- 锁定后不能继续下单"""
+    try:
+        # 检查是否为管理员
+        user_row = db_manager.execute_one(
+            "SELECT is_admin FROM users WHERE open_id = ?", 
+            [open_id]
+        )
+        if not user_row or not user_row[0]:
+            raise HTTPException(status_code=403, detail="需要管理员权限")
+        
+        # 检查餐次是否存在
+        meal_row = db_manager.execute_one(
+            "SELECT meal_id, status FROM meals WHERE meal_id = ?",
+            [meal_id]
+        )
+        if not meal_row:
+            raise HTTPException(status_code=404, detail="餐次不存在")
+        
+        # 更新餐次状态
+        db_manager.execute_query(
+            "UPDATE meals SET status = 'locked' WHERE meal_id = ?",
+            [meal_id]
+        )
+        
+        return {"success": True, "message": "餐次已锁定", "meal_id": meal_id, "status": "locked"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"锁定餐次失败: {str(e)}")
+
+
+@router.post("/{meal_id}/unlock", response_model=Dict[str, Any])
+def unlock_meal(meal_id: int, open_id: str = Depends(get_open_id)):
+    """解锁餐次（管理员功能）- 解锁后可以继续下单"""
+    try:
+        # 检查是否为管理员
+        user_row = db_manager.execute_one(
+            "SELECT is_admin FROM users WHERE open_id = ?",
+            [open_id]
+        )
+        if not user_row or not user_row[0]:
+            raise HTTPException(status_code=403, detail="需要管理员权限")
+        
+        # 检查餐次是否存在
+        meal_row = db_manager.execute_one(
+            "SELECT meal_id, status FROM meals WHERE meal_id = ?",
+            [meal_id]
+        )
+        if not meal_row:
+            raise HTTPException(status_code=404, detail="餐次不存在")
+        
+        # 更新餐次状态
+        db_manager.execute_query(
+            "UPDATE meals SET status = 'published' WHERE meal_id = ?",
+            [meal_id]
+        )
+        
+        return {"success": True, "message": "餐次已解锁", "meal_id": meal_id, "status": "published"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"解锁餐次失败: {str(e)}")
+
+
+@router.post("/{meal_id}/cancel", response_model=Dict[str, Any])
+def cancel_meal(meal_id: int, open_id: str = Depends(get_open_id)):
+    """取消餐次并退款（管理员功能）"""
+    try:
+        # 检查是否为管理员
+        user_row = db_manager.execute_one(
+            "SELECT is_admin FROM users WHERE open_id = ?",
+            [open_id]
+        )
+        if not user_row or not user_row[0]:
+            raise HTTPException(status_code=403, detail="需要管理员权限")
+        
+        # 检查餐次是否存在
+        meal_row = db_manager.execute_one(
+            "SELECT meal_id, status FROM meals WHERE meal_id = ?",
+            [meal_id]
+        )
+        if not meal_row:
+            raise HTTPException(status_code=404, detail="餐次不存在")
+        
+        # 开始事务
+        db_manager.begin_transaction()
+        try:
+            # 获取所有相关订单
+            orders = db_manager.execute_all(
+                """SELECT order_id, user_id, amount_cents 
+                   FROM orders 
+                   WHERE meal_id = ? AND status = 'active'""",
+                [meal_id]
+            )
+            
+            # 退款并取消所有订单
+            for order in orders:
+                order_id, user_id, amount = order
+                
+                # 取消订单
+                db_manager.execute_query(
+                    "UPDATE orders SET status = 'canceled' WHERE order_id = ?",
+                    [order_id]
+                )
+                
+                # 退款
+                db_manager.execute_query(
+                    "UPDATE users SET balance_cents = balance_cents + ? WHERE id = ?",
+                    [amount, user_id]
+                )
+                
+                # 记录退款
+                db_manager.execute_query(
+                    """INSERT INTO ledger(user_id, type, amount_cents, ref_type, ref_id, remark) 
+                       VALUES (?, ?, ?, ?, ?, ?)""",
+                    [user_id, "refund", amount, "meal_cancel", meal_id, "餐次取消自动退款"]
+                )
+            
+            # 更新餐次状态
+            db_manager.execute_query(
+                "UPDATE meals SET status = 'canceled' WHERE meal_id = ?",
+                [meal_id]
+            )
+            
+            db_manager.commit_transaction()
+            
+            return {
+                "success": True, 
+                "message": "餐次已取消", 
+                "meal_id": meal_id,
+                "status": "canceled",
+                "refunded_orders": len(orders)
+            }
+            
+        except Exception:
+            db_manager.rollback_transaction()
+            raise
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"取消餐次失败: {str(e)}")
+
+
+# 获取餐次列表
+@router.get("/", response_model=Dict[str, Any])
+def get_meals_list(
+    status: str = None,
+    date_from: str = None,
+    date_to: str = None,
+    limit: int = 50,
+    offset: int = 0,
+    open_id: str = Depends(get_open_id)
+):
+    """获取餐次列表"""
+    try:
+        # 构建查询条件
+        conditions = []
+        params = []
+        
+        if status:
+            conditions.append("status = ?")
+            params.append(status)
+        
+        if date_from:
+            conditions.append("meal_date >= ?")
+            params.append(date_from)
+        
+        if date_to:
+            conditions.append("meal_date <= ?")
+            params.append(date_to)
+        
+        where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
+        
+        # 查询餐次
+        query = f"""
+            SELECT meal_id, meal_date, slot, title, description, 
+                   base_price_cents, options_json, capacity, per_user_limit, status
+            FROM meals
+            {where_clause}
+            ORDER BY meal_date DESC, slot DESC
+            LIMIT ? OFFSET ?
+        """
+        params.extend([limit, offset])
+        
+        meals = db_manager.execute_all(query, params)
+        
+        # 格式化结果
+        result = []
+        for meal in meals:
+            result.append({
+                "meal_id": meal[0],
+                "date": str(meal[1]),
+                "slot": meal[2],
+                "title": meal[3],
+                "description": meal[4],
+                "base_price_cents": meal[5],
+                "options": meal[6],
+                "capacity": meal[7],
+                "per_user_limit": meal[8],
+                "status": meal[9]
+            })
+        
+        return {
+            "success": True,
+            "data": result,
+            "total": len(result),
+            "limit": limit,
+            "offset": offset
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取餐次列表失败: {str(e)}")

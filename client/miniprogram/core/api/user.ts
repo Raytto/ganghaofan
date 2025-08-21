@@ -219,18 +219,18 @@ export class UserAPI {
   }
 
   /**
-   * 管理员充值用户余额
+   * 用户自助充值余额
    */
   static async rechargeBalance(
-    userId: number, 
-    amountCents: number
+    amountCents: number,
+    notes?: string
   ): Promise<{ success: boolean; data?: any; message?: string }> {
     try {
       const response = await httpClient.post(
         API_ENDPOINTS.USER_BALANCE_RECHARGE,
         {
-          user_id: userId,
-          amount_cents: amountCents
+          amount_cents: amountCents,
+          notes: notes || '用户自助充值'
         },
         {
           showLoading: true,
@@ -250,6 +250,35 @@ export class UserAPI {
       return { 
         success: false, 
         message: error?.message || '充值失败' 
+      }
+    }
+  }
+
+  /**
+   * 获取用户余额信息（支持透支状态）
+   */
+  static async getUserBalance(): Promise<{ success: boolean; data?: any; message?: string }> {
+    try {
+      const response = await httpClient.get(
+        API_ENDPOINTS.USER_BALANCE,
+        {
+          cacheDuration: 10 * 1000, // 10秒缓存
+          retryConfig: {
+            maxAttempts: 2,
+            baseDelay: 500,
+            maxDelay: 2000,
+            backoffFactor: 2,
+            retryableErrors: ['timeout', 'NETWORK_ERROR']
+          }
+        }
+      )
+
+      return { success: true, data: response }
+    } catch (error) {
+      console.error('获取余额失败:', error)
+      return { 
+        success: false, 
+        message: error?.message || '获取余额失败' 
       }
     }
   }

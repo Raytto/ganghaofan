@@ -8,9 +8,13 @@ import tempfile
 import os
 import json
 from fastapi.testclient import TestClient
-from ..app import create_app
-from ..core.database import DatabaseManager
-from ..config.settings import settings
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from app import create_app
+from core.database import DatabaseManager
+from config.settings import settings
 
 class TestSettings:
     """测试环境配置"""
@@ -113,12 +117,12 @@ def test_db(test_settings):
 def app_instance(test_settings, test_db):
     """测试应用"""
     # 临时替换全局设置
-    import server.config.settings as settings_module
+    import config.settings as settings_module
     original_settings = settings_module.settings
     settings_module.settings = test_settings
     
     # 临时替换数据库管理器
-    import server.core.database as db_module
+    import core.database as db_module
     original_db_manager = db_module.db_manager
     db_module.db_manager = test_db
     

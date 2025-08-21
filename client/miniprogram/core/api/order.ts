@@ -17,20 +17,24 @@ import { API_ENDPOINTS } from '../constants'
 export interface CreateOrderRequest {
   /** 餐次ID */
   meal_id: number
-  /** 订单数量（固定为1） */
+  /** 订单数量 */
   qty: number
-  /** 选择的配菜选项ID列表 */
-  options: string[]
+  /** 选择的配菜选项JSON字符串 */
+  options_json: string
+  /** 订单备注 */
+  notes?: string
 }
 
 /**
  * 订单修改请求参数
  */
 export interface UpdateOrderRequest {
-  /** 订单数量（固定为1） */
+  /** 订单数量 */
   qty: number
-  /** 选择的配菜选项ID列表 */
-  options: string[]
+  /** 选择的配菜选项JSON字符串 */
+  options_json: string
+  /** 订单备注 */
+  notes?: string
 }
 
 /**
@@ -39,10 +43,22 @@ export interface UpdateOrderRequest {
 export interface OrderResponse {
   /** 订单ID */
   order_id: number
+  /** 餐次ID */
+  meal_id: number
+  /** 用户ID */
+  user_id: number
+  /** 订单数量 */
+  qty: number
   /** 订单金额（分） */
   amount_cents: number
-  /** 用户余额（分） */
+  /** 用户余额（分）- 支持负数透支 */
   balance_cents: number
+  /** 订单状态 */
+  status: string
+  /** 透支警告信息 */
+  overdraft_warning?: string
+  /** 创建时间 */
+  created_at: string
 }
 
 /**
@@ -51,10 +67,14 @@ export interface OrderResponse {
 export interface CancelOrderResponse {
   /** 订单ID */
   order_id: number
-  /** 用户余额（分） */
-  balance_cents: number
   /** 订单状态 */
   status: 'canceled'
+  /** 退款金额（分） */
+  refund_amount_cents: number
+  /** 新的用户余额（分）- 支持负数 */
+  new_balance_cents: number
+  /** 取消时间 */
+  canceled_at: string
 }
 
 /**
@@ -95,7 +115,7 @@ export class OrderApi {
 
   /**
    * 修改订单
-   * 实际上是取消旧订单并创建新订单的原子操作
+   * 实际上是取消旧订单并创建新订单的原子操作，支持透支
    * 
    * @param orderId 要修改的订单ID
    * @param params 新的订单参数
@@ -103,7 +123,7 @@ export class OrderApi {
    * @throws OrderApiError 当业务逻辑错误时
    */
   static async updateOrder(orderId: number, params: UpdateOrderRequest): Promise<OrderResponse> {
-    return httpClient.patch<OrderResponse>(API_ENDPOINTS.ORDER_UPDATE(orderId), params, {
+    return httpClient.put<OrderResponse>(API_ENDPOINTS.ORDER_UPDATE(orderId), params, {
       retryConfig: {
         maxAttempts: 2,
         baseDelay: 1000,
@@ -142,7 +162,7 @@ export class OrderApi {
 export class OrderService {
   /**
    * 下单操作
-   * 包含完整的错误处理和用户提示
+   * 包含完整的错误处理、透支提醒和用户提示
    * 
    * @param params 订单参数
    * @returns Promise<OrderResponse | null> 成功时返回订单信息，失败时返回null
@@ -153,11 +173,27 @@ export class OrderService {
       const result = await OrderApi.createOrder(params)
       wx.hideLoading()
       
-      wx.showToast({
-        title: '下单成功',
-        icon: 'success',
-        duration: 2000
-      })
+      // 检查是否触发透支
+      if (result.balance_cents < 0) {
+        // 透支提醒
+        const overdraftAmount = Math.abs(result.balance_cents) / 100
+        await new Promise<void>((resolve) => {
+          wx.showModal({
+            title: '透支提醒',
+            content: `下单成功！\n当前余额：${result.balance_cents / 100}元\n您已透支${overdraftAmount}元${result.overdraft_warning ? '\n' + result.overdraft_warning : ''}`,
+            showCancel: false,
+            confirmText: '我知道了',
+            success: () => resolve(),
+            fail: () => resolve()
+          })
+        })
+      } else {
+        wx.showToast({
+          title: '下单成功',
+          icon: 'success',
+          duration: 2000
+        })
+      }
       
       return result
     } catch (error: any) {
@@ -177,6 +213,7 @@ export class OrderService {
 
   /**
    * 修改订单操作
+   * 支持透支状态下的订单修改
    * 
    * @param orderId 订单ID
    * @param params 新的订单参数
@@ -188,11 +225,26 @@ export class OrderService {
       const result = await OrderApi.updateOrder(orderId, params)
       wx.hideLoading()
       
-      wx.showToast({
-        title: '修改成功',
-        icon: 'success',
-        duration: 2000
-      })
+      // 检查修改后是否进入透支状态
+      if (result.balance_cents < 0) {
+        const overdraftAmount = Math.abs(result.balance_cents) / 100
+        await new Promise<void>((resolve) => {
+          wx.showModal({
+            title: '订单修改成功',
+            content: `修改成功！\n当前余额：${result.balance_cents / 100}元\n您已透支${overdraftAmount}元${result.overdraft_warning ? '\n' + result.overdraft_warning : ''}`,
+            showCancel: false,
+            confirmText: '我知道了',
+            success: () => resolve(),
+            fail: () => resolve()
+          })
+        })
+      } else {
+        wx.showToast({
+          title: '修改成功',
+          icon: 'success',
+          duration: 2000
+        })
+      }
       
       return result
     } catch (error: any) {
@@ -259,7 +311,7 @@ export class OrderService {
 
   /**
    * 统一的错误消息处理
-   * 将后端错误码转换为用户友好的消息
+   * 将后端错误码转换为用户友好的消息，包含透支相关错误
    * 
    * @param error 错误对象
    * @returns string 用户友好的错误消息
@@ -288,6 +340,18 @@ export class OrderService {
     }
     if (message.includes('qty must be 1')) {
       return '每人每餐只能订一份'
+    }
+    if (message.includes('insufficient balance')) {
+      return '余额不足（可继续使用透支功能）'
+    }
+    if (message.includes('overdraft limit exceeded')) {
+      return '透支额度不足，请先充值'
+    }
+    if (message.includes('PERMISSION_DENIED')) {
+      return '权限不足，请联系管理员'
+    }
+    if (message.includes('VALIDATION_ERROR')) {
+      return '请求参数错误，请重试'
     }
     
     return message

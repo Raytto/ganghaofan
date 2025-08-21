@@ -9,8 +9,13 @@ import json
 from typing import Optional, Generator
 from contextlib import contextmanager
 import threading
-from .exceptions import DatabaseError
-from ..config.settings import settings
+try:
+    from .exceptions import DatabaseError
+    from ..config.settings import settings
+except ImportError:
+    # Fallback for test environment
+    from core.exceptions import DatabaseError
+    from config.settings import settings
 
 # 数据文件存储目录
 DATA_DIR = Path(__file__).parent.parent / "data"
@@ -172,8 +177,8 @@ class DatabaseManager:
         with self._lock:
             conn = self.connection
             try:
-                # 设置事务隔离级别
-                conn.execute(f"SET TRANSACTION ISOLATION LEVEL {isolation_level}")
+                # DuckDB doesn't support SET TRANSACTION ISOLATION LEVEL syntax
+                # Just begin the transaction
                 conn.execute("BEGIN")
                 yield conn
                 conn.execute("COMMIT")

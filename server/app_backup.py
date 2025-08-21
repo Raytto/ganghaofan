@@ -32,10 +32,7 @@ from .config.settings import settings
 from .api import api_router
 
 # 向后兼容：保持原有的导入路径可用
-try:
-    from .db import use_db_key
-except ImportError:
-    from db import use_db_key
+from .db import use_db_key
 from fastapi import Depends
 
 

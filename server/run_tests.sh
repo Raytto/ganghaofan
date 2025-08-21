@@ -81,7 +81,9 @@ run_unit_tests() {
     log_info "运行单元测试..."
     
     if [ -f "tests/test_order_service.py" ]; then
-        pytest tests/test_order_service.py -v --tb=short
+        # 设置PYTHONPATH让Python能正确导入模块
+        export PYTHONPATH="${PWD}:${PYTHONPATH}"
+        python -m pytest tests/test_order_service.py -v --tb=short
         log_success "单元测试完成"
     else
         log_warning "单元测试文件不存在，跳过"
@@ -95,8 +97,11 @@ run_api_tests() {
     export TESTING=true
     export JWT_SECRET_KEY="test-secret-key-for-testing"
     
+    # 设置PYTHONPATH让Python能正确导入模块
+    export PYTHONPATH="${PWD}:${PYTHONPATH}"
+    
     # 运行API测试
-    pytest tests/test_api_*.py -v --tb=short
+    python -m pytest tests/test_api_*.py -v --tb=short
     log_success "API测试完成"
 }
 
@@ -107,8 +112,11 @@ run_all_tests_with_coverage() {
     export TESTING=true
     export JWT_SECRET_KEY="test-secret-key-for-testing"
     
+    # 设置PYTHONPATH让Python能正确导入模块
+    export PYTHONPATH="${PWD}:${PYTHONPATH}"
+    
     # 运行所有测试并生成覆盖率报告
-    pytest tests/ \
+    python -m pytest tests/ \
         --cov=. \
         --cov-report=html \
         --cov-report=term \

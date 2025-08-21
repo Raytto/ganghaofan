@@ -3,7 +3,7 @@
  */
 
 export const API_CONFIG = {
-  BASE_URL: 'http://127.0.0.1:8000/api/v1',
+  BASE_URL: 'http://127.0.0.1:8001/api/v1', // 更新为实际测试环境端口
   TIMEOUT: 10000,
   MAX_RETRIES: 3
 } as const
@@ -26,8 +26,9 @@ export const API_ENDPOINTS = {
   USER_BALANCE_RECHARGE: '/users/balance/recharge',
   
   // 餐次相关
-  CALENDAR: '/calendar',
-  CALENDAR_BATCH: '/calendar/batch',
+  CALENDAR: '/meals/calendar', // 修正路径
+  CALENDAR_BATCH: '/meals/calendar/batch', // 修正路径
+  MEAL_LIST: '/meals/', // 新增餐次列表端点
   MEAL_DETAIL: (mealId: number) => `/meals/${mealId}`,
   MEAL_CREATE: '/meals/',
   MEAL_UPDATE: (mealId: number) => `/meals/${mealId}`,
@@ -37,10 +38,18 @@ export const API_ENDPOINTS = {
   MEAL_CANCEL: (mealId: number) => `/meals/${mealId}/cancel`,
   MEAL_REPOST: (mealId: number) => `/meals/${mealId}/repost`,
   
-  // 订单相关
-  ORDER_CREATE: '/orders',
-  ORDER_UPDATE: (orderId: number) => `/orders/${orderId}`,
-  ORDER_CANCEL: (orderId: number) => `/orders/${orderId}`,
+  // 订单相关 - 修正为实际的API路径
+  ORDER_CREATE: '/orders/orders',
+  ORDER_LIST: '/orders/orders',
+  ORDER_DETAIL: (orderId: number) => `/orders/orders/${orderId}`,
+  ORDER_UPDATE: (orderId: number) => `/orders/orders/${orderId}`,
+  ORDER_CANCEL: (orderId: number) => `/orders/orders/${orderId}`,
+  
+  // 管理员功能
+  ADMIN_USERS: '/users/admin/users',
+  ADMIN_STATS: '/users/admin/stats',
+  ADMIN_BALANCE_ADJUST: '/users/admin/balance/adjust',
+  ADMIN_BALANCE_TRANSACTIONS: '/users/admin/balance/transactions',
   
   // 日志相关
   LOGS_MY: '/logs/my',

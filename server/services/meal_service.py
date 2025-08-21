@@ -23,7 +23,7 @@ class MealService:
                 raise PermissionDeniedError("需要管理员权限")
             
             # 验证日期时段唯一性
-            if self._meal_exists(meal_data.date, meal_data.slot):
+            if self._meal_exists(meal_data.meal_date, meal_data.slot):
                 raise BusinessRuleError("该日期时段已存在餐次")
             
             # 创建餐次
@@ -58,8 +58,8 @@ class MealService:
     
     def get_meals_by_date_range(self, start_date: date, end_date: date) -> List[Dict[str, Any]]:
         """按日期范围获取餐次"""
-        with self.db.connection as conn:
-            query = """
+        conn = self.db.get_connection()
+        query = """
             SELECT 
                 m.*,
                 COALESCE(SUM(o.qty), 0) as ordered_qty
@@ -67,17 +67,19 @@ class MealService:
             LEFT JOIN orders o ON m.meal_id = o.meal_id AND o.status = 'active'
             WHERE m.date >= ? AND m.date <= ?
             GROUP BY m.meal_id, m.date, m.slot, m.title, m.description, 
-                     m.base_price_cents, m.capacity, m.status, m.created_by
+                     m.base_price_cents, m.capacity, m.per_user_limit, m.options_json, 
+                     m.status, m.created_by, m.created_at, m.updated_at
             ORDER BY m.date, m.slot
             """
-            
-            results = conn.execute(query, [start_date.isoformat(), end_date.isoformat()]).fetchall()
-            return [dict(row) for row in results]
+        
+        results = conn.execute(query, [start_date.isoformat(), end_date.isoformat()]).fetchall()
+        columns = [desc[0] for desc in conn.description]
+        return [dict(zip(columns, row)) for row in results]
     
     def get_meal(self, meal_id: int) -> Optional[Meal]:
         """获取单个餐次"""
-        with self.db.connection as conn:
-            query = """
+        conn = self.db.get_connection()
+        query = """
             SELECT 
                 m.*,
                 COALESCE(SUM(o.qty), 0) as ordered_qty
@@ -85,51 +87,58 @@ class MealService:
             LEFT JOIN orders o ON m.meal_id = o.meal_id AND o.status = 'active'
             WHERE m.meal_id = ?
             GROUP BY m.meal_id, m.date, m.slot, m.title, m.description, 
-                     m.base_price_cents, m.capacity, m.status, m.created_by
+                     m.base_price_cents, m.capacity, m.per_user_limit, m.options_json, 
+                     m.status, m.created_by, m.created_at, m.updated_at
             """
+        
+        result = conn.execute(query, [meal_id]).fetchone()
+        if result:
+            # Get column names from the query result
+            columns = [desc[0] for desc in conn.description]
+            meal_data = dict(zip(columns, result))
             
-            result = conn.execute(query, [meal_id]).fetchone()
-            if result:
-                meal_data = dict(result)
-                
-                # 解析options_json
-                import json
-                options = []
-                if meal_data.get("options_json"):
-                    try:
-                        options = json.loads(meal_data["options_json"])
-                    except (json.JSONDecodeError, TypeError):
-                        options = []
-                
-                return Meal(
-                    meal_id=meal_data["meal_id"],
-                    date=meal_data["date"],
-                    slot=meal_data["slot"],
-                    title=meal_data.get("title"),
-                    description=meal_data.get("description"),
-                    base_price_cents=meal_data["base_price_cents"],
-                    capacity=meal_data["capacity"],
-                    per_user_limit=meal_data.get("per_user_limit", 1),
-                    options=options,
-                    status=meal_data["status"],
-                    created_by=meal_data.get("created_by"),
-                    ordered_qty=meal_data.get("ordered_qty", 0)
-                )
-            return None
+            # Map database column names to model field names
+            if 'date' in meal_data:
+                meal_data['meal_date'] = meal_data['date']
+            
+            # 解析options_json
+            import json
+            options = []
+            if meal_data.get("options_json"):
+                try:
+                    options = json.loads(meal_data["options_json"])
+                except (json.JSONDecodeError, TypeError):
+                    options = []
+            
+            return Meal(
+                meal_id=meal_data["meal_id"],
+                meal_date=meal_data["meal_date"],
+                slot=meal_data["slot"],
+                title=meal_data.get("title"),
+                description=meal_data.get("description"),
+                base_price_cents=meal_data["base_price_cents"],
+                capacity=meal_data["capacity"],
+                per_user_limit=meal_data.get("per_user_limit", 1),
+                options=options,
+                status=meal_data["status"],
+                created_by=meal_data.get("created_by"),
+                ordered_qty=meal_data.get("ordered_qty", 0)
+            )
+        return None
     
     def _is_admin(self, user_id: int) -> bool:
         """检查用户是否为管理员"""
-        with self.db.connection as conn:
-            query = "SELECT is_admin FROM users WHERE id = ?"
-            result = conn.execute(query, [user_id]).fetchone()
-            return result and result["is_admin"]
+        conn = self.db.get_connection()
+        query = "SELECT is_admin FROM users WHERE id = ?"
+        result = conn.execute(query, [user_id]).fetchone()
+        return result and result[0]
     
     def _meal_exists(self, date: date, slot: str) -> bool:
         """检查餐次是否已存在"""
-        with self.db.connection as conn:
-            query = "SELECT COUNT(*) as count FROM meals WHERE date = ? AND slot = ?"
-            result = conn.execute(query, [date.isoformat(), slot]).fetchone()
-            return result["count"] > 0
+        conn = self.db.get_connection()
+        query = "SELECT COUNT(*) as count FROM meals WHERE date = ? AND slot = ?"
+        result = conn.execute(query, [date.isoformat(), slot]).fetchone()
+        return result[0] > 0
     
     def _validate_status_transition(self, current_status: str, new_status: str):
         """验证状态转换是否合法"""
@@ -158,8 +167,8 @@ class MealService:
         """
         
         now = datetime.now().isoformat()
-        result = conn.execute(query, [
-            meal_data.date.isoformat(),
+        conn.execute(query, [
+            meal_data.meal_date.isoformat(),
             meal_data.slot.value,
             meal_data.title,
             meal_data.description,
@@ -172,8 +181,13 @@ class MealService:
             now
         ])
         
-        # DuckDB 获取插入的ID
-        meal_id_result = conn.execute("SELECT lastval()").fetchone()
+        # DuckDB 获取最后插入的ID - 使用具体查询
+        meal_id_result = conn.execute("""
+            SELECT meal_id FROM meals 
+            WHERE date = ? AND slot = ? 
+            ORDER BY created_at DESC 
+            LIMIT 1
+        """, [meal_data.meal_date.isoformat(), meal_data.slot.value]).fetchone()
         return meal_id_result[0] if meal_id_result else None
     
     def _update_meal_status(self, conn, meal_id: int, status: str):
