@@ -68,8 +68,10 @@ export function getDbKey(): string | null {
         if (oid && map && typeof map === 'object' && map[oid]) return map[oid];
         // 若尚未拿到 open_id 或未设置用户作用域 key，则回退使用全局临时 Key
         const gk = wx.getStorageSync(DB_KEY_GLOBAL_KEY) as string | undefined;
-        return (gk && typeof gk === 'string' && gk.trim()) ? gk : null;
-    } catch { return null; }
+        if (gk && typeof gk === 'string' && gk.trim()) return gk;
+        // 默认使用development key用于开发环境
+        return 'development';
+    } catch { return 'development'; }
 }
 
 export function setDbKey(k: string | null) {
