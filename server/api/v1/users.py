@@ -23,7 +23,7 @@ from ...services.user_service import UserService
 router = APIRouter()
 
 
-@router.get("/users/me", response_model=UserProfileResponse)
+@router.get("/me", response_model=UserProfileResponse)
 def get_my_profile(open_id: str = Depends(get_open_id)):
     """
     获取当前用户档案信息
@@ -64,7 +64,7 @@ def get_my_profile(open_id: str = Depends(get_open_id)):
         raise HTTPException(status_code=500, detail=f"获取用户信息失败: {str(e)}")
 
 
-@router.get("/users/me/balance", response_model=UserBalanceResponse)
+@router.get("/me/balance", response_model=UserBalanceResponse)
 def get_my_balance(open_id: str = Depends(get_open_id)):
     """获取当前用户余额"""
     try:
@@ -92,7 +92,7 @@ def get_my_balance(open_id: str = Depends(get_open_id)):
         raise HTTPException(status_code=500, detail=f"获取余额失败: {str(e)}")
 
 
-@router.post("/users/{user_id}/recharge", response_model=UserRechargeResponse)
+@router.post("/{user_id}/recharge", response_model=UserRechargeResponse)
 def recharge_user(
     user_id: int, 
     req: UserRechargeRequest,
@@ -152,7 +152,7 @@ def recharge_user(
         raise HTTPException(status_code=500, detail=f"充值失败: {str(e)}")
 
 
-@router.put("/users/me", response_model=UserProfileResponse)
+@router.put("/me", response_model=UserProfileResponse)
 def update_my_profile(
     req: UserUpdateRequest,
     open_id: str = Depends(get_open_id)

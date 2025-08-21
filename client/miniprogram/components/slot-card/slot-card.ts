@@ -54,15 +54,36 @@ Component({
         isAdmin: false
     },
 
-    // 混入响应式功能
-    ...createComponentReactive(),
-
     ready() {
-        // 绑定状态
-        this.bindState({
-            darkMode: 'app.darkMode',
-            isAdmin: 'user.isAdmin'
+        // 手动绑定状态，因为Component不支持扩展操作符
+        const unsubscribers: (() => void)[] = []
+        
+        // 绑定darkMode状态
+        const darkModeValue = stateManager.getState('app.darkMode')
+        this.setData({ darkMode: darkModeValue })
+        const unsubscribeDarkMode = stateManager.subscribe('app.darkMode', (newValue) => {
+            this.setData({ darkMode: newValue })
         })
+        unsubscribers.push(unsubscribeDarkMode)
+        
+        // 绑定isAdmin状态
+        const isAdminValue = stateManager.getState('user.isAdmin')
+        this.setData({ isAdmin: isAdminValue })
+        const unsubscribeIsAdmin = stateManager.subscribe('user.isAdmin', (newValue) => {
+            this.setData({ isAdmin: newValue })
+        })
+        unsubscribers.push(unsubscribeIsAdmin)
+        
+        // 保存取消订阅函数
+        this._stateUnsubscribers = unsubscribers
+    },
+
+    detached() {
+        // 清理状态订阅
+        if (this._stateUnsubscribers) {
+            this._stateUnsubscribers.forEach((unsubscribe: () => void) => unsubscribe())
+            this._stateUnsubscribers = null
+        }
     },
 
     observers: {
