@@ -205,7 +205,9 @@ async function request<T = any>(
             console.log('Network error detected, retrying after 500ms...');
             await new Promise(resolve => setTimeout(resolve, 500));
             try {
-                return await doOnce()
+                const result = await doOnce()
+                console.log('Retry successful!');
+                return result;
             } catch (retryError) {
                 console.log('Retry failed, throwing original error');
                 // 重试失败，抛出原错误

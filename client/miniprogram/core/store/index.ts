@@ -80,7 +80,7 @@ export class StateManager {
       },
       app: {
         debugMode: false,
-        darkMode: true,
+        darkMode: false, // 默认浅色模式
         adminViewEnabled: false,
         initialized: false
       },

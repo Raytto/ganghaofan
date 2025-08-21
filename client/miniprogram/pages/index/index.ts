@@ -88,8 +88,8 @@ Component({
     },
 
     // 主题相关
-    themeClass: '',
-    darkMode: true,
+    themeClass: 'light-theme', // 默认浅色主题
+    darkMode: false, // 默认浅色模式
   },
 
   lifetimes: {

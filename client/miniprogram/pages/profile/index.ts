@@ -7,8 +7,8 @@ Page({
     ...createPageReactive(),
 
     data: {
-        darkMode: true,
-        themeClass: '',
+        darkMode: false, // 默认浅色模式
+        themeClass: 'light-theme', // 默认浅色主题
         balance: 0,
         loadingBalance: false,
         dbKey: '',
